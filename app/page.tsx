@@ -105,6 +105,13 @@ function getPrimaryMunicipioId(csv: string) {
   return normalizeMunicipiosCsv(csv).split(",")[0] ?? "";
 }
 
+function getMunicipiosIds(csv: string) {
+  return normalizeMunicipiosCsv(csv)
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
 function sanitizeFilters(f: FilterValues): FilterValues {
   const cleanMunicipios = normalizeMunicipiosCsv(f.idMunicipio);
 
@@ -378,38 +385,6 @@ export default function Home() {
     fetchPostos(next);
   }, [fetchPostos]);
 
-  useEffect(() => {
-    if (!mapaOpen) return;
-
-    const distrito = filtersRef.current.idDistrito;
-    const municipio = getPrimaryMunicipioId(filtersRef.current.idMunicipio);
-    let attempts = 0;
-
-    const tryFly = () => {
-      attempts++;
-      mapInvalidateRefMobile.current?.();
-
-      if (!mapFlyRefMobile.current) {
-        if (attempts < 15) setTimeout(tryFly, 200);
-        return;
-      }
-
-      if (municipio && distrito) {
-        fetchMunicipiosLocal(distrito)
-          .then((lista) => {
-            const m = lista.find((x) => String(x.Id) === municipio);
-            if (m) mapFlyRefMobile.current?.flyToConcelho(distrito, m.Descritivo);
-          })
-          .catch(() => {});
-      } else if (distrito) {
-        mapFlyRefMobile.current.flyToDistrito(distrito);
-      }
-    };
-
-    const t = setTimeout(tryFly, 150);
-    return () => clearTimeout(t);
-  }, [mapaOpen]);
-
   function handleCopy(addr: string) {
     navigator.clipboard.writeText(addr);
     setCopiedAddr(addr);
@@ -468,6 +443,55 @@ export default function Home() {
     distritoAtivo !== "" &&
     !hasMarca &&
     !hasMunicipioSelecionado;
+
+useEffect(() => {
+  if (!mapaOpen) return;
+
+  const distrito = filtersRef.current.idDistrito;
+  const municipiosIds = getMunicipiosIds(filtersRef.current.idMunicipio);
+  let attempts = 0;
+
+  const tryFly = () => {
+    attempts++;
+    mapInvalidateRefMobile.current?.();
+
+    if (!mapFlyRefMobile.current) {
+      if (attempts < 15) setTimeout(tryFly, 200);
+      return;
+    }
+
+    // Se houver vários concelhos:
+    // - com resultados/pins, deixa o MapView ajustar aos pins
+    // - sem resultados, mostra pelo menos o distrito inteiro
+    if (municipiosIds.length > 1) {
+      if (!mostrarPins && distrito) {
+        mapFlyRefMobile.current.flyToDistrito(distrito);
+      }
+      return;
+    }
+
+    // Um só concelho -> mantém o comportamento atual
+    if (municipiosIds.length === 1 && distrito) {
+      fetchMunicipiosLocal(distrito)
+        .then((lista) => {
+          const m = lista.find((x) => String(x.Id) === municipiosIds[0]);
+          if (m) {
+            mapFlyRefMobile.current?.flyToConcelho(distrito, m.Descritivo);
+          }
+        })
+        .catch(() => {});
+      return;
+    }
+
+    // Só distrito
+    if (distrito) {
+      mapFlyRefMobile.current.flyToDistrito(distrito);
+    }
+  };
+
+  const t = setTimeout(tryFly, 150);
+  return () => clearTimeout(t);
+}, [mapaOpen, mostrarPins]);
 
   const SORT_BTNS = [
     { label: "⬇ Gasolina", value: "gasolina_asc" },
