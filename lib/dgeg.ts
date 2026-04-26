@@ -1,5 +1,6 @@
 const DGEG = "https://precoscombustiveis.dgeg.gov.pt/api/PrecoComb";
-const ARCGIS = "https://services3.arcgis.com/L8wRKpelHTajqMnK/ArcGIS/rest/services/PostosAbastecimento/FeatureServer/0/query";
+const ARCGIS =
+  "https://services3.arcgis.com/L8wRKpelHTajqMnK/ArcGIS/rest/services/PostosAbastecimento/FeatureServer/0/query";
 
 // IDs das marcas permitidas
 export const ALLOWED_MARCAS = [
@@ -82,13 +83,15 @@ async function dgegGet<T>(path: string): Promise<T> {
 }
 
 export async function getDistritos(): Promise<Distrito[]> {
-  return (await dgegGet<Distrito[]>("GetDistritos"))
-    .sort((a, b) => a.Descritivo.localeCompare(b.Descritivo, "pt"));
+  return (await dgegGet<Distrito[]>("GetDistritos")).sort((a, b) =>
+    a.Descritivo.localeCompare(b.Descritivo, "pt")
+  );
 }
 
 export async function getMunicipios(idDistrito: number): Promise<Municipio[]> {
-  return (await dgegGet<Municipio[]>(`GetMunicipios?idDistrito=${idDistrito}`))
-    .sort((a, b) => a.Descritivo.localeCompare(b.Descritivo, "pt"));
+  return (await dgegGet<Municipio[]>(`GetMunicipios?idDistrito=${idDistrito}`)).sort((a, b) =>
+    a.Descritivo.localeCompare(b.Descritivo, "pt")
+  );
 }
 
 function parsePrecoStr(s: string): number | null {
@@ -101,7 +104,11 @@ interface DadosMapa {
   Marca: string;
   Combustiveis: { TipoCombustivel: string; Preco: string }[] | null;
   Morada: { Morada: string; Localidade: string; CodPostal: string };
-  HorarioPosto: { DiasUteis: string | null; Sabado: string | null; Domingo: string | null };
+  HorarioPosto: {
+    DiasUteis: string | null;
+    Sabado: string | null;
+    Domingo: string | null;
+  };
   DataAtualizacao: string;
 }
 
@@ -163,8 +170,8 @@ export async function getPostos(query: PostoQuery): Promise<Posto[]> {
 
   const fuelLabel = FUELS.find((f) => f.id === query.fuelId)?.label ?? "";
 
-  const enriched = await Promise.all(
-    toEnrich.map(async (p) => {
+  const enriched: Posto[] = await Promise.all(
+    toEnrich.map(async (p): Promise<Posto> => {
       const dados = await getDadosMapa(p.Id);
       const combs = dados?.Combustiveis ?? [];
 
@@ -238,6 +245,8 @@ export async function getPostos(query: PostoQuery): Promise<Posto[]> {
   try {
     await Promise.all(
       idChunks.map(async (chunk) => {
+        if (chunk.length === 0) return;
+
         const arcParams = new URLSearchParams({
           where: `CodInterno IN (${chunk.join(",")})`,
           outFields: "CodInterno,nLatitude,nLongitude",
@@ -286,10 +295,10 @@ export async function getPostos(query: PostoQuery): Promise<Posto[]> {
       }
     }
   } catch {
-    /* coords opcionais */
+    // coords opcionais
   }
 
-  let result = enriched as Posto[];
+  let result: Posto[] = enriched;
 
   if (query.search) {
     const q = query.search.toLowerCase();
