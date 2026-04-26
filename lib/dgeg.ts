@@ -88,7 +88,8 @@ interface DadosMapa {
 export interface PostoQuery {
   fuelId: string;
   idDistrito?: string;
-  idMunicipio?: string;
+  idMunicipio?: string;   // compatibilidade com frontend/route atuais
+  idMunicipios?: string;  // suporte multi-select / nome novo
   marcaId?: string;
   search?: string;
   bbox?: string;
@@ -140,6 +141,17 @@ function normalizeText(s: string): string {
     .replace(/\p{Diacritic}/gu, "")
     .normalize("NFC")
     .trim();
+}
+
+function normalizeMunicipiosParam(value?: string): string {
+  if (!value) return "";
+
+  return [...new Set(
+    value
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean)
+  )].join(",");
 }
 
 function pickPrecoCombustivel(
@@ -258,16 +270,20 @@ async function getCoordsArcGIS(
 }
 
 export async function getPostos(query: PostoQuery): Promise<Posto[]> {
+  const municipiosParam = normalizeMunicipiosParam(
+    query.idMunicipios ?? query.idMunicipio
+  );
+
   const dgegParams = new URLSearchParams({
     idsTiposComb: query.fuelId,
     idMarca: query.marcaId ?? "",
     idTipoPosto: "",
     idDistrito: query.idDistrito ?? "",
-    idsMunicipios: query.idMunicipio ?? "",
+    idsMunicipios: municipiosParam,
     qtd: "999",
   });
 
-  const dgegRes = await fetch(`${DGEG}/ListarDadosPostos?${dgegParams}`, {
+  const dgegRes = await fetch(`${DGEG}/ListarDadosPostos?${dgegParams.toString()}`, {
     next: { revalidate: 300 },
     headers: {
       Accept: "application/json",

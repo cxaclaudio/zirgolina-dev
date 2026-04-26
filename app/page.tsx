@@ -92,11 +92,31 @@ function normText(s: string) {
     .trim();
 }
 
+function normalizeMunicipiosCsv(csv: string) {
+  return [...new Set(
+    (csv ?? "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean)
+  )].join(",");
+}
+
+function getPrimaryMunicipioId(csv: string) {
+  return normalizeMunicipiosCsv(csv).split(",")[0] ?? "";
+}
+
 function sanitizeFilters(f: FilterValues): FilterValues {
-  if (!f.idDistrito && f.idMunicipio) {
+  const cleanMunicipios = normalizeMunicipiosCsv(f.idMunicipio);
+
+  if (!f.idDistrito && cleanMunicipios) {
     return { ...f, idMunicipio: "" };
   }
-  return f;
+
+  return {
+    ...f,
+    fuelId: f.fuelId || "3201",
+    idMunicipio: cleanMunicipios,
+  };
 }
 
 export default function Home() {
@@ -149,10 +169,7 @@ export default function Home() {
   }, []);
 
   const fetchPostos = useCallback(async (f: FilterValues) => {
-    const safeF = sanitizeFilters({
-      ...f,
-      fuelId: f.fuelId || "3201",
-    });
+    const safeF = sanitizeFilters(f);
 
     const temDistrito = !!safeF.idDistrito;
     const temMunicipio = !!safeF.idMunicipio;
@@ -177,23 +194,51 @@ export default function Home() {
       const params = new URLSearchParams();
       params.set("fuelId", safeF.fuelId);
       if (safeF.idDistrito) params.set("idDistrito", safeF.idDistrito);
-      if (safeF.idMunicipio) params.set("idMunicipio", safeF.idMunicipio);
+      if (safeF.idMunicipio) params.set("idMunicipios", safeF.idMunicipio);
       if (safeF.marcaId) params.set("marcaId", safeF.marcaId);
       if (safeF.search) params.set("search", safeF.search);
 
-      const res = await fetch(`/api/combustivel?${params}`);
+      const res = await fetch(`/api/combustivel?${params.toString()}`);
       const json = await res.json();
 
-      if (!json.ok) throw new Error(json.error ?? "Erro desconhecido");
+      if (!res.ok || !json.ok) {
+        const msg =
+          typeof json?.error === "string" && json.error.trim()
+            ? json.error
+            : "Erro ao obter postos.";
+
+        if (msg.toLowerCase().includes("nenhum posto encontrado")) {
+          setError("Não existem postos para os filtros selecionados.");
+        } else {
+          setError(msg);
+        }
+
+        setPostos([]);
+        return;
+      }
 
       const filtered = (json.data as Posto[]).filter((p) => {
         if (p.preco !== null && p.preco <= 0) return false;
         return true;
       });
 
+      if (filtered.length === 0) {
+        setError("Não existem postos para os filtros selecionados.");
+        setPostos([]);
+        return;
+      }
+
       setPostos(filtered);
+      setError("");
     } catch (e) {
-      setError(String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+
+      if (msg.toLowerCase().includes("nenhum posto encontrado")) {
+        setError("Não existem postos para os filtros selecionados.");
+      } else {
+        setError(msg || "Erro inesperado ao carregar postos.");
+      }
+
       setPostos([]);
     } finally {
       setLoading(false);
@@ -281,11 +326,12 @@ export default function Home() {
 
     const distritoMudou = next.idDistrito !== filtersRef.current.idDistrito;
     const concelhoMudou = next.idMunicipio !== filtersRef.current.idMunicipio;
+    const primaryMunicipio = getPrimaryMunicipioId(next.idMunicipio);
 
     filtersRef.current = next;
     setFuelId(next.fuelId);
     setDistritoAtivo(next.idDistrito);
-    setMunicipioAtivo(next.idMunicipio);
+    setMunicipioAtivo(primaryMunicipio);
 
     if (!next.idDistrito && !next.idMunicipio && !next.marcaId && !next.search) {
       setHasSearched(false);
@@ -293,7 +339,7 @@ export default function Home() {
       setError("");
     }
 
-    if (concelhoMudou && next.idMunicipio && next.idDistrito) {
+    if (concelhoMudou && primaryMunicipio && next.idDistrito) {
       ignoreMapClicksRef.current = true;
       setTimeout(() => {
         ignoreMapClicksRef.current = false;
@@ -301,7 +347,7 @@ export default function Home() {
 
       fetchMunicipiosLocal(next.idDistrito)
         .then((lista) => {
-          const m = lista.find((x) => String(x.Id) === next.idMunicipio);
+          const m = lista.find((x) => String(x.Id) === primaryMunicipio);
           if (m) flyToConcelho(next.idDistrito, m.Descritivo);
         })
         .catch(() => {});
@@ -316,11 +362,12 @@ export default function Home() {
 
   const handleSearch = useCallback((f: FilterValues) => {
     const next = sanitizeFilters(f);
+    const primaryMunicipio = getPrimaryMunicipioId(next.idMunicipio);
 
     filtersRef.current = next;
     setFuelId(next.fuelId);
     setDistritoAtivo(next.idDistrito);
-    setMunicipioAtivo(next.idMunicipio);
+    setMunicipioAtivo(primaryMunicipio);
     setHasSearched(true);
 
     ignoreMapClicksRef.current = true;
@@ -335,7 +382,7 @@ export default function Home() {
     if (!mapaOpen) return;
 
     const distrito = filtersRef.current.idDistrito;
-    const municipio = filtersRef.current.idMunicipio;
+    const municipio = getPrimaryMunicipioId(filtersRef.current.idMunicipio);
     let attempts = 0;
 
     const tryFly = () => {
@@ -406,20 +453,21 @@ export default function Home() {
 
   const hasMarca = filtersRef.current.marcaId !== "";
   const hasSearch = filtersRef.current.search !== "";
+  const hasMunicipioSelecionado = filtersRef.current.idMunicipio !== "";
   const hasQueryContext =
     distritoAtivo !== "" ||
-    municipioAtivo !== "" ||
+    hasMunicipioSelecionado ||
     hasMarca ||
     hasSearch;
 
   const mostrarPins =
     postosVisiveis.length > 0 &&
-    (municipioAtivo !== "" || hasMarca);
+    (hasMunicipioSelecionado || hasMarca);
 
   const mostrarPinsDistrito =
     distritoAtivo !== "" &&
     !hasMarca &&
-    municipioAtivo === "";
+    !hasMunicipioSelecionado;
 
   const SORT_BTNS = [
     { label: "⬇ Gasolina", value: "gasolina_asc" },
@@ -546,7 +594,21 @@ export default function Home() {
             gap: "0.75rem",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", height: HEADER_H }}>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            title="Recarregar página"
+            aria-label="Recarregar página"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              height: HEADER_H,
+              background: "transparent",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+            }}
+          >
             <img
               src={dark ? "/logo-dark.png" : "/logo-light.png"}
               alt="Zirgolina"
@@ -578,7 +640,7 @@ export default function Home() {
             >
               zirgolina
             </span>
-          </div>
+          </button>
 
           <div style={{ flex: 1 }} />
 
@@ -726,7 +788,7 @@ export default function Home() {
             </div>
           )}
 
-          {!hasSearched && distritoAtivo && !municipioAtivo && !hasMarca && !loading && postos.length === 0 && !error && (
+          {!hasSearched && distritoAtivo && !hasMunicipioSelecionado && !hasMarca && !loading && postos.length === 0 && !error && (
             <div
               className="card"
               style={{
@@ -740,7 +802,7 @@ export default function Home() {
             >
               <p style={{ fontWeight: 700, fontSize: "0.82rem" }}>Escolha concelho ou marca</p>
               <p className="text-muted" style={{ fontSize: "0.72rem" }}>
-                Selecione um concelho <strong>ou</strong> uma marca e clique <strong>Pesquisar</strong>.
+                Selecione um ou vários concelhos <strong>ou</strong> uma marca e clique <strong>Pesquisar</strong>.
               </p>
             </div>
           )}
