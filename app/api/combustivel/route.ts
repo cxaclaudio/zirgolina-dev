@@ -20,6 +20,7 @@ export async function GET(req: Request) {
     });
     return NextResponse.json({ ok: true, data, total: data.length }, { headers });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e), data: [] }, { status: 502, headers });
-  }
+  const message = e instanceof Error ? e.message : String(e);
+  return NextResponse.json({ ok: false, error: message, data: [] }, { status: 502, headers });
+}
 }

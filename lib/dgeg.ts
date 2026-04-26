@@ -19,7 +19,7 @@ export const ALLOWED_MARCAS = [
   { id: "53", nome: "PRIO" },
   { id: "58", nome: "REPSOL" },
   { id: "60", nome: "SHELL" },
-];
+] as const;
 
 // Todos os tipos de combustível disponíveis no API da DGEG
 export const FUELS = [
@@ -31,7 +31,7 @@ export const FUELS = [
   { id: "2105", label: "Gasóleo especial" },
   { id: "1120", label: "GPL Auto" },
   { id: "2150", label: "Gasóleo colorido" },
-];
+] as const;
 
 export interface Distrito {
   Id: number;
@@ -68,16 +68,50 @@ export interface Posto {
   horario: string;
 }
 
+interface DadosMapa {
+  Nome: string;
+  Marca: string;
+  Combustiveis: { TipoCombustivel: string; Preco: string }[] | null;
+  Morada: {
+    Morada: string;
+    Localidade: string;
+    CodPostal: string;
+  };
+  HorarioPosto: {
+    DiasUteis: string | null;
+    Sabado: string | null;
+    Domingo: string | null;
+  };
+  DataAtualizacao: string;
+}
+
+export interface PostoQuery {
+  fuelId: string;
+  idDistrito?: string;
+  idMunicipio?: string;
+  marcaId?: string;
+  search?: string;
+  bbox?: string;
+}
+
 async function dgegGet<T>(path: string): Promise<T> {
   const res = await fetch(`${DGEG}/${path}`, {
     next: { revalidate: 3600 },
-    headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0" },
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "Mozilla/5.0",
+    },
   });
 
-  if (!res.ok) throw new Error(`DGEG ${path} → HTTP ${res.status}`);
+  if (!res.ok) {
+    throw new Error(`DGEG ${path} → HTTP ${res.status}`);
+  }
 
   const json = await res.json();
-  if (!json.status) throw new Error(`DGEG: ${json.mensagem}`);
+
+  if (!json.status) {
+    throw new Error(json.mensagem ?? "Erro na DGEG.");
+  }
 
   return json.resultado as T;
 }
@@ -99,17 +133,50 @@ function parsePrecoStr(s: string): number | null {
   return m ? parseFloat(m[0]) : null;
 }
 
-interface DadosMapa {
-  Nome: string;
-  Marca: string;
-  Combustiveis: { TipoCombustivel: string; Preco: string }[] | null;
-  Morada: { Morada: string; Localidade: string; CodPostal: string };
-  HorarioPosto: {
-    DiasUteis: string | null;
-    Sabado: string | null;
-    Domingo: string | null;
-  };
-  DataAtualizacao: string;
+function normalizeText(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .normalize("NFC")
+    .trim();
+}
+
+function pickPrecoCombustivel(
+  combs: { TipoCombustivel: string; Preco: string }[],
+  fuelLabel: string,
+  combustiveis: CombustivelPreco[]
+): number | null {
+  if (!fuelLabel) return combustiveis[0]?.preco ?? null;
+
+  const fuelNorm = normalizeText(fuelLabel);
+  const fuelFirst = fuelNorm.replace("gasolina especial", "especial").split(" ")[0];
+  const fuelLast = fuelNorm.split(" ").slice(-1)[0];
+
+  const exact =
+    combs.find((c) => normalizeText(c.TipoCombustivel) === fuelNorm) ?? null;
+
+  const includesLast =
+    combs.find((c) => normalizeText(c.TipoCombustivel).includes(fuelLast)) ?? null;
+
+  const includesFirst =
+    combs.find((c) => normalizeText(c.TipoCombustivel).includes(fuelFirst)) ?? null;
+
+  const picked = exact ?? includesLast ?? includesFirst ?? null;
+
+  return picked ? parsePrecoStr(picked.Preco) : (combustiveis[0]?.preco ?? null);
+}
+
+function buildHorario(dados: DadosMapa | null): string {
+  if (!dados?.HorarioPosto) return "";
+
+  return [
+    dados.HorarioPosto.DiasUteis && `Dias úteis: ${dados.HorarioPosto.DiasUteis}`,
+    dados.HorarioPosto.Sabado && `Sáb: ${dados.HorarioPosto.Sabado}`,
+    dados.HorarioPosto.Domingo && `Dom: ${dados.HorarioPosto.Domingo}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 async function getDadosMapa(id: number): Promise<DadosMapa | null> {
@@ -132,13 +199,62 @@ async function getDadosMapa(id: number): Promise<DadosMapa | null> {
   }
 }
 
-export interface PostoQuery {
-  fuelId: string;
-  idDistrito?: string;
-  idMunicipio?: string;
-  marcaId?: string;
-  search?: string;
-  bbox?: string;
+async function getCoordsArcGIS(
+  ids: number[],
+  bbox?: string
+): Promise<Record<number, { lat: number; lng: number }>> {
+  const coordMap: Record<number, { lat: number; lng: number }> = {};
+  const idChunks: number[][] = [];
+
+  for (let i = 0; i < ids.length; i += 150) {
+    idChunks.push(ids.slice(i, i + 150));
+  }
+
+  await Promise.all(
+    idChunks.map(async (chunk) => {
+      if (chunk.length === 0) return;
+
+      const arcParams = new URLSearchParams({
+        where: `CodInterno IN (${chunk.join(",")})`,
+        outFields: "CodInterno,nLatitude,nLongitude",
+        returnGeometry: "false",
+        resultRecordCount: String(chunk.length),
+        f: "json",
+      });
+
+      if (bbox) {
+        arcParams.set("geometry", bbox);
+        arcParams.set("geometryType", "esriGeometryEnvelope");
+        arcParams.set("spatialRel", "esriSpatialRelIntersects");
+        arcParams.set("inSR", "4326");
+      }
+
+      const arcRes = await fetch(`${ARCGIS}?${arcParams}`, {
+        next: { revalidate: 300 },
+      });
+
+      if (!arcRes.ok) return;
+
+      const arcJson = await arcRes.json();
+
+      for (const f of (arcJson.features ?? []) as { attributes: Record<string, unknown> }[]) {
+        const a = f.attributes;
+
+        if (
+          typeof a.CodInterno === "number" &&
+          typeof a.nLatitude === "number" &&
+          typeof a.nLongitude === "number"
+        ) {
+          coordMap[a.CodInterno] = {
+            lat: a.nLatitude,
+            lng: a.nLongitude,
+          };
+        }
+      }
+    })
+  );
+
+  return coordMap;
 }
 
 export async function getPostos(query: PostoQuery): Promise<Posto[]> {
@@ -160,13 +276,22 @@ export async function getPostos(query: PostoQuery): Promise<Posto[]> {
     },
   });
 
-  if (!dgegRes.ok) throw new Error(`DGEG HTTP ${dgegRes.status}`);
+  if (!dgegRes.ok) {
+    throw new Error(`DGEG HTTP ${dgegRes.status}`);
+  }
 
   const dgegJson = await dgegRes.json();
-  if (!dgegJson.status) throw new Error(dgegJson.mensagem ?? "Sem resultados");
+
+  if (!dgegJson.status) {
+    throw new Error(dgegJson.mensagem ?? "Nenhum posto encontrado.");
+  }
 
   const postoIds: { Id: number }[] = dgegJson.resultado ?? [];
   const toEnrich = postoIds.slice(0, 999);
+
+  if (toEnrich.length === 0) {
+    return [];
+  }
 
   const fuelLabel = FUELS.find((f) => f.id === query.fuelId)?.label ?? "";
 
@@ -179,41 +304,16 @@ export async function getPostos(query: PostoQuery): Promise<Posto[]> {
         .map((c) => {
           const preco = parsePrecoStr(c.Preco);
           return preco !== null
-            ? { tipo: c.TipoCombustivel, preco, texto: `${preco.toFixed(3)} €/L` }
+            ? {
+                tipo: c.TipoCombustivel,
+                preco,
+                texto: `${preco.toFixed(3)} €/L`,
+              }
             : null;
         })
         .filter((x): x is CombustivelPreco => x !== null);
 
-      const matchedComb =
-        combs.find(
-          (c) =>
-            c.TipoCombustivel.toLowerCase().includes(
-              fuelLabel.toLowerCase().replace("gasolina especial", "especial").split(" ")[0]
-            ) || c.TipoCombustivel === fuelLabel
-        ) ?? null;
-
-      const matchedComb2 =
-        combs.find((c) => c.TipoCombustivel === fuelLabel) ??
-        combs.find((c) =>
-          c.TipoCombustivel.toLowerCase().includes(
-            fuelLabel.toLowerCase().split(" ").slice(-1)[0]
-          )
-        ) ??
-        matchedComb;
-
-      const preco = matchedComb2
-        ? parsePrecoStr(matchedComb2.Preco)
-        : (combustiveis[0]?.preco ?? null);
-
-      const horario = dados?.HorarioPosto
-        ? [
-            dados.HorarioPosto.DiasUteis && `Dias úteis: ${dados.HorarioPosto.DiasUteis}`,
-            dados.HorarioPosto.Sabado && `Sáb: ${dados.HorarioPosto.Sabado}`,
-            dados.HorarioPosto.Domingo && `Dom: ${dados.HorarioPosto.Domingo}`,
-          ]
-            .filter(Boolean)
-            .join(" · ")
-        : "";
+      const preco = pickPrecoCombustivel(combs, fuelLabel, combustiveis);
 
       return {
         id: p.Id,
@@ -230,61 +330,15 @@ export async function getPostos(query: PostoQuery): Promise<Posto[]> {
         dataAtualizacao: dados?.DataAtualizacao ?? null,
         lat: null,
         lng: null,
-        horario,
+        horario: buildHorario(dados),
       };
     })
   );
 
-  const coordMap: Record<number, { lat: number; lng: number }> = {};
-  const idChunks: number[][] = [];
-
-  for (let i = 0; i < toEnrich.length; i += 150) {
-    idChunks.push(toEnrich.slice(i, i + 150).map((p) => p.Id));
-  }
-
   try {
-    await Promise.all(
-      idChunks.map(async (chunk) => {
-        if (chunk.length === 0) return;
-
-        const arcParams = new URLSearchParams({
-          where: `CodInterno IN (${chunk.join(",")})`,
-          outFields: "CodInterno,nLatitude,nLongitude",
-          returnGeometry: "false",
-          resultRecordCount: String(chunk.length),
-          f: "json",
-        });
-
-        if (query.bbox) {
-          arcParams.set("geometry", query.bbox);
-          arcParams.set("geometryType", "esriGeometryEnvelope");
-          arcParams.set("spatialRel", "esriSpatialRelIntersects");
-          arcParams.set("inSR", "4326");
-        }
-
-        const arcRes = await fetch(`${ARCGIS}?${arcParams}`, {
-          next: { revalidate: 300 },
-        });
-
-        if (!arcRes.ok) return;
-
-        const arcJson = await arcRes.json();
-
-        for (const f of (arcJson.features ?? []) as { attributes: Record<string, unknown> }[]) {
-          const a = f.attributes;
-
-          if (
-            typeof a.CodInterno === "number" &&
-            typeof a.nLatitude === "number" &&
-            typeof a.nLongitude === "number"
-          ) {
-            coordMap[a.CodInterno] = {
-              lat: a.nLatitude,
-              lng: a.nLongitude,
-            };
-          }
-        }
-      })
+    const coordMap = await getCoordsArcGIS(
+      toEnrich.map((p) => p.Id),
+      query.bbox
     );
 
     for (const p of enriched) {
