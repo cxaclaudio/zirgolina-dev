@@ -92,6 +92,13 @@ function normText(s: string) {
     .trim();
 }
 
+function sanitizeFilters(f: FilterValues): FilterValues {
+  if (!f.idDistrito && f.idMunicipio) {
+    return { ...f, idMunicipio: "" };
+  }
+  return f;
+}
+
 export default function Home() {
   const { dark, toggle } = useTheme();
 
@@ -106,6 +113,7 @@ export default function Home() {
   const [calcOpen, setCalcOpen] = useState(false);
   const [doarOpen, setDoarOpen] = useState(false);
   const [copiedAddr, setCopiedAddr] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const mapFlyRefDesktop = useRef<{
     flyToDistrito: (id: string) => void;
@@ -141,15 +149,23 @@ export default function Home() {
   }, []);
 
   const fetchPostos = useCallback(async (f: FilterValues) => {
-    const temDistrito = !!f.idDistrito;
-    const temMunicipio = !!f.idMunicipio;
-    const temMarca = !!f.marcaId;
+    const safeF = sanitizeFilters({
+      ...f,
+      fuelId: f.fuelId || "3201",
+    });
+
+    const temDistrito = !!safeF.idDistrito;
+    const temMunicipio = !!safeF.idMunicipio;
+    const temMarca = !!safeF.marcaId;
+    const temSearch = !!safeF.search;
+
     const podeSearch =
+      temMarca ||
       (temDistrito && temMunicipio) ||
-      (temDistrito && temMarca) ||
-      !!f.search;
+      temSearch;
 
     if (!podeSearch) {
+      setError("");
       setPostos([]);
       return;
     }
@@ -159,11 +175,11 @@ export default function Home() {
 
     try {
       const params = new URLSearchParams();
-      params.set("fuelId", f.fuelId || "3201");
-      if (f.idDistrito) params.set("idDistrito", f.idDistrito);
-      if (f.idMunicipio) params.set("idMunicipio", f.idMunicipio);
-      if (f.marcaId) params.set("marcaId", f.marcaId);
-      if (f.search) params.set("search", f.search);
+      params.set("fuelId", safeF.fuelId);
+      if (safeF.idDistrito) params.set("idDistrito", safeF.idDistrito);
+      if (safeF.idMunicipio) params.set("idMunicipio", safeF.idMunicipio);
+      if (safeF.marcaId) params.set("marcaId", safeF.marcaId);
+      if (safeF.search) params.set("search", safeF.search);
 
       const res = await fetch(`/api/combustivel?${params}`);
       const json = await res.json();
@@ -198,25 +214,28 @@ export default function Home() {
     setMunicipioAtivo("");
     setFuelId("3201");
     setOrdenacao("gasolina_asc");
+    setHasSearched(false);
   }
 
   const handleDistritoClick = useCallback((nome: string, id?: string) => {
     if (ignoreMapClicksRef.current) return;
 
-    const newF: FilterValues = {
+    const newF: FilterValues = sanitizeFilters({
       ...filtersRef.current,
       fuelId,
       idDistrito: id ?? "",
       idMunicipio: "",
-    };
+    });
 
     filtersRef.current = newF;
     setDistritoAtivo(id ?? "");
     setMunicipioAtivo("");
 
-    if (filtersRef.current.marcaId) {
+    if (newF.marcaId) {
+      setHasSearched(true);
       fetchPostos(newF);
     } else {
+      setHasSearched(false);
       setPostos([]);
     }
   }, [fetchPostos, fuelId]);
@@ -243,54 +262,73 @@ export default function Home() {
       return;
     }
 
-    const novoFiltro: FilterValues = {
+    const novoFiltro: FilterValues = sanitizeFilters({
       ...filtersRef.current,
       fuelId,
       idDistrito: distritoId,
       idMunicipio: concelhoId,
-    };
+    });
 
     filtersRef.current = novoFiltro;
     setDistritoAtivo(distritoId);
     setMunicipioAtivo(concelhoId);
+    setHasSearched(true);
     fetchPostos(novoFiltro);
   }, [fetchPostos, fuelId]);
 
   const handleFilterChange = useCallback((f: FilterValues) => {
-    const distritoMudou = f.idDistrito !== filtersRef.current.idDistrito;
-    const concelhoMudou = f.idMunicipio !== filtersRef.current.idMunicipio;
+    const next = sanitizeFilters(f);
 
-    filtersRef.current = f;
-    setFuelId(f.fuelId);
-    setDistritoAtivo(f.idDistrito);
-    setMunicipioAtivo(f.idMunicipio);
+    const distritoMudou = next.idDistrito !== filtersRef.current.idDistrito;
+    const concelhoMudou = next.idMunicipio !== filtersRef.current.idMunicipio;
 
-    if (concelhoMudou && f.idMunicipio && f.idDistrito) {
+    filtersRef.current = next;
+    setFuelId(next.fuelId);
+    setDistritoAtivo(next.idDistrito);
+    setMunicipioAtivo(next.idMunicipio);
+
+    if (!next.idDistrito && !next.idMunicipio && !next.marcaId && !next.search) {
+      setHasSearched(false);
+      setPostos([]);
+      setError("");
+    }
+
+    if (concelhoMudou && next.idMunicipio && next.idDistrito) {
       ignoreMapClicksRef.current = true;
       setTimeout(() => {
         ignoreMapClicksRef.current = false;
       }, 2000);
 
-      fetchMunicipiosLocal(f.idDistrito).then((lista) => {
-        const m = lista.find((x) => String(x.Id) === f.idMunicipio);
-        if (m) flyToConcelho(f.idDistrito, m.Descritivo);
-      }).catch(() => {});
-    } else if (distritoMudou && f.idDistrito) {
+      fetchMunicipiosLocal(next.idDistrito)
+        .then((lista) => {
+          const m = lista.find((x) => String(x.Id) === next.idMunicipio);
+          if (m) flyToConcelho(next.idDistrito, m.Descritivo);
+        })
+        .catch(() => {});
+    } else if (distritoMudou && next.idDistrito) {
       ignoreMapClicksRef.current = true;
       setTimeout(() => {
         ignoreMapClicksRef.current = false;
       }, 2000);
-      flyToDistrito(f.idDistrito);
+      flyToDistrito(next.idDistrito);
     }
   }, [flyToDistrito, flyToConcelho]);
 
   const handleSearch = useCallback((f: FilterValues) => {
-    filtersRef.current = f;
+    const next = sanitizeFilters(f);
+
+    filtersRef.current = next;
+    setFuelId(next.fuelId);
+    setDistritoAtivo(next.idDistrito);
+    setMunicipioAtivo(next.idMunicipio);
+    setHasSearched(true);
+
     ignoreMapClicksRef.current = true;
     setTimeout(() => {
       ignoreMapClicksRef.current = false;
     }, 1500);
-    fetchPostos(f);
+
+    fetchPostos(next);
   }, [fetchPostos]);
 
   useEffect(() => {
@@ -310,10 +348,12 @@ export default function Home() {
       }
 
       if (municipio && distrito) {
-        fetchMunicipiosLocal(distrito).then((lista) => {
-          const m = lista.find((x) => String(x.Id) === municipio);
-          if (m) mapFlyRefMobile.current?.flyToConcelho(distrito, m.Descritivo);
-        }).catch(() => {});
+        fetchMunicipiosLocal(distrito)
+          .then((lista) => {
+            const m = lista.find((x) => String(x.Id) === municipio);
+            if (m) mapFlyRefMobile.current?.flyToConcelho(distrito, m.Descritivo);
+          })
+          .catch(() => {});
       } else if (distrito) {
         mapFlyRefMobile.current.flyToDistrito(distrito);
       }
@@ -364,13 +404,21 @@ export default function Home() {
     return 0;
   });
 
-  const mostrarPins =
+  const hasMarca = filtersRef.current.marcaId !== "";
+  const hasSearch = filtersRef.current.search !== "";
+  const hasQueryContext =
+    distritoAtivo !== "" ||
     municipioAtivo !== "" ||
-    (distritoAtivo !== "" && filtersRef.current.marcaId !== "" && municipioAtivo === "");
+    hasMarca ||
+    hasSearch;
+
+  const mostrarPins =
+    postosVisiveis.length > 0 &&
+    (municipioAtivo !== "" || hasMarca);
 
   const mostrarPinsDistrito =
     distritoAtivo !== "" &&
-    filtersRef.current.marcaId !== "" &&
+    !hasMarca &&
     municipioAtivo === "";
 
   const SORT_BTNS = [
@@ -641,15 +689,21 @@ export default function Home() {
                 borderRadius: "50%",
                 flexShrink: 0,
                 display: "inline-block",
-                background: loading ? "#f97316" : distritoAtivo ? "#22c55e" : "var(--text-muted)",
+                background: loading ? "#f97316" : hasQueryContext ? "#22c55e" : "var(--text-muted)",
               }}
             />
             <span className="text-muted" style={{ fontSize: "0.72rem" }}>
-              {loading ? "A carregar…" : distritoAtivo ? `${postosVisiveis.length} postos` : "Selecione um distrito"}
+              {loading
+                ? "A carregar…"
+                : hasSearched
+                ? `${postosVisiveis.length} postos`
+                : hasQueryContext
+                ? "Pronto a pesquisar"
+                : "Selecione filtros"}
             </span>
           </div>
 
-          {!distritoAtivo && !loading && postos.length === 0 && !error && (
+          {!hasSearched && !hasMarca && !distritoAtivo && !loading && postos.length === 0 && !error && (
             <div
               className="card"
               style={{
@@ -665,14 +719,14 @@ export default function Home() {
                 <circle cx="20" cy="20" r="18" stroke="var(--border)" strokeWidth="1.5" />
                 <path d="M20 10 L20 20 L27 24" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              <p style={{ fontWeight: 700, fontSize: "0.9rem" }}>Selecione um distrito</p>
+              <p style={{ fontWeight: 700, fontSize: "0.9rem" }}>Selecione um distrito ou uma marca</p>
               <p className="text-muted" style={{ fontSize: "0.74rem" }}>
-                Clique no mapa ou escolha nos filtros.
+                Pode pesquisar por marca em todos os distritos.
               </p>
             </div>
           )}
 
-          {distritoAtivo && !loading && postos.length === 0 && !error && (
+          {!hasSearched && distritoAtivo && !municipioAtivo && !hasMarca && !loading && postos.length === 0 && !error && (
             <div
               className="card"
               style={{
@@ -687,6 +741,21 @@ export default function Home() {
               <p style={{ fontWeight: 700, fontSize: "0.82rem" }}>Escolha concelho ou marca</p>
               <p className="text-muted" style={{ fontSize: "0.72rem" }}>
                 Selecione um concelho <strong>ou</strong> uma marca e clique <strong>Pesquisar</strong>.
+              </p>
+            </div>
+          )}
+
+          {hasSearched && !loading && postos.length === 0 && !error && (
+            <div
+              className="card"
+              style={{
+                padding: "1.25rem",
+                textAlign: "center",
+              }}
+            >
+              <p style={{ fontWeight: 700, fontSize: "0.8rem" }}>Sem resultados</p>
+              <p className="text-muted" style={{ fontSize: "0.68rem", marginTop: "0.2rem" }}>
+                Nenhum posto encontrado para os filtros atuais.
               </p>
             </div>
           )}

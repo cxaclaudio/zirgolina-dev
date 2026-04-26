@@ -1,22 +1,23 @@
-const DGEG   = "https://precoscombustiveis.dgeg.gov.pt/api/PrecoComb";
+const DGEG = "https://precoscombustiveis.dgeg.gov.pt/api/PrecoComb";
 const ARCGIS = "https://services3.arcgis.com/L8wRKpelHTajqMnK/ArcGIS/rest/services/PostosAbastecimento/FeatureServer/0/query";
 
 // IDs das marcas permitidas
 export const ALLOWED_MARCAS = [
-  { id: "2",   nome: "ALVES BANDEIRA" },
-  { id: "5",   nome: "AUCHAN" },
-  { id: "11",  nome: "BP" },
-  { id: "15",  nome: "CEPSA" },
-  { id: "29",  nome: "GALP" },
-  { id: "38",  nome: "INTERMARCHÉ" },
-  { id: "40",  nome: "LECLERC" },
-  { id: "72",  nome: "MOEVE" },
-  { id: "78",  nome: "NOVA" },
-  { id: "45",  nome: "OZ ENERGIA" },
-  { id: "52",  nome: "PINGO DOCE" },
-  { id: "53",  nome: "PRIO" },
-  { id: "58",  nome: "REPSOL" },
-  { id: "60",  nome: "SHELL" },
+  { id: "2", nome: "ALVES BANDEIRA" },
+  { id: "5", nome: "AUCHAN" },
+  { id: "11", nome: "BP" },
+  { id: "15", nome: "CEPSA" },
+  { id: "29", nome: "GALP" },
+  { id: "38", nome: "INTERMARCHÉ" },
+  { id: "40", nome: "LECLERC" },
+  { id: "72", nome: "MOEVE" },
+  { id: "78", nome: "NOVA" },
+  { id: "45", nome: "OZ ENERGIA" },
+  { id: "52", nome: "PINGO DOCE" },
+  { id: "74", nome: "PLENERGY" },
+  { id: "53", nome: "PRIO" },
+  { id: "58", nome: "REPSOL" },
+  { id: "60", nome: "SHELL" },
 ];
 
 // Todos os tipos de combustível disponíveis no API da DGEG
@@ -31,52 +32,39 @@ export const FUELS = [
   { id: "2150", label: "Gasóleo colorido" },
 ];
 
-const DISTRITO_BOUNDS: Record<string, [number, number, number, number]> = {
-  "1":  [40.5, 41.1, -8.9, -7.8],  // Aveiro
-  "2":  [37.6, 38.4, -8.4, -7.2],  // Beja
-  "3":  [41.2, 41.9, -8.8, -7.8],  // Braga
-  "4":  [41.5, 42.2, -7.3, -6.2],  // Bragança
-  "5":  [39.6, 40.4, -8.1, -6.8],  // Castelo Branco
-  "6":  [39.8, 40.5, -8.6, -7.7],  // Coimbra
-  "7":  [38.0, 38.9, -8.2, -7.0],  // Évora
-  "8":  [36.9, 37.6, -8.9, -7.4],  // Faro
-  "9":  [40.2, 41.0, -7.8, -6.8],  // Guarda
-  "10": [39.4, 40.1, -9.0, -8.2],  // Leiria
-  "11": [38.6, 39.4, -9.5, -8.8],  // Lisboa
-  "12": [39.0, 39.6, -8.1, -7.2],  // Portalegre
-  "13": [40.9, 41.6, -8.8, -7.7],  // Porto
-  "14": [38.8, 39.7, -9.0, -7.9],  // Santarém
-  "15": [37.9, 38.7, -9.1, -8.4],  // Setúbal
-  "16": [41.6, 42.2, -8.9, -8.0],  // Viana do Castelo
-  "17": [41.3, 42.0, -8.0, -7.1],  // Vila Real
-  "18": [40.6, 41.2, -8.2, -7.3],  // Viseu
-};
+export interface Distrito {
+  Id: number;
+  Descritivo: string;
+}
 
-export interface Distrito  { Id: number; Descritivo: string; }
-export interface Municipio { Id: number; Descritivo: string; IdDistrito: number; }
+export interface Municipio {
+  Id: number;
+  Descritivo: string;
+  IdDistrito: number;
+}
 
 export interface CombustivelPreco {
-  tipo:  string;
+  tipo: string;
   preco: number;
   texto: string;
 }
 
 export interface Posto {
-  id:              number;
-  nome:            string;
-  marca:           string;
-  distrito:        string;
-  municipio:       string;
-  morada:          string;
-  localidade:      string;
-  codPostal:       string;
-  combustiveis:    CombustivelPreco[];   // TODOS os combustíveis disponíveis
-  preco:           number | null;        // preço do combustível filtrado
-  precoTexto:      string;
+  id: number;
+  nome: string;
+  marca: string;
+  distrito: string;
+  municipio: string;
+  morada: string;
+  localidade: string;
+  codPostal: string;
+  combustiveis: CombustivelPreco[];
+  preco: number | null;
+  precoTexto: string;
   dataAtualizacao: string | null;
-  lat:             number | null;
-  lng:             number | null;
-  horario:         string;
+  lat: number | null;
+  lng: number | null;
+  horario: string;
 }
 
 async function dgegGet<T>(path: string): Promise<T> {
@@ -84,9 +72,12 @@ async function dgegGet<T>(path: string): Promise<T> {
     next: { revalidate: 3600 },
     headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0" },
   });
+
   if (!res.ok) throw new Error(`DGEG ${path} → HTTP ${res.status}`);
+
   const json = await res.json();
   if (!json.status) throw new Error(`DGEG: ${json.mensagem}`);
+
   return json.resultado as T;
 }
 
@@ -106,11 +97,11 @@ function parsePrecoStr(s: string): number | null {
 }
 
 interface DadosMapa {
-  Nome:            string;
-  Marca:           string;
-  Combustiveis:    { TipoCombustivel: string; Preco: string }[] | null;
-  Morada:          { Morada: string; Localidade: string; CodPostal: string };
-  HorarioPosto:    { DiasUteis: string | null; Sabado: string | null; Domingo: string | null };
+  Nome: string;
+  Marca: string;
+  Combustiveis: { TipoCombustivel: string; Preco: string }[] | null;
+  Morada: { Morada: string; Localidade: string; CodPostal: string };
+  HorarioPosto: { DiasUteis: string | null; Sabado: string | null; Domingo: string | null };
   DataAtualizacao: string;
 }
 
@@ -124,7 +115,9 @@ async function getDadosMapa(id: number): Promise<DadosMapa | null> {
         "User-Agent": "Mozilla/5.0",
       },
     });
+
     if (!res.ok) return null;
+
     const json = await res.json();
     return json.status ? (json.resultado as DadosMapa) : null;
   } catch {
@@ -133,23 +126,22 @@ async function getDadosMapa(id: number): Promise<DadosMapa | null> {
 }
 
 export interface PostoQuery {
-  fuelId:       string;   // ID numérico do tipo de combustível
-  idDistrito?:  string;
+  fuelId: string;
+  idDistrito?: string;
   idMunicipio?: string;
-  marcaId?:     string;
-  search?:      string;
-  bbox?:        string;
+  marcaId?: string;
+  search?: string;
+  bbox?: string;
 }
 
 export async function getPostos(query: PostoQuery): Promise<Posto[]> {
-  // 1. ListarDadosPostos → filtra por distrito/município/combustível server-side
   const dgegParams = new URLSearchParams({
-    idsTiposComb:  query.fuelId,
-    idMarca:       query.marcaId ?? "",
-    idTipoPosto:   "",
-    idDistrito:    query.idDistrito  ?? "",
+    idsTiposComb: query.fuelId,
+    idMarca: query.marcaId ?? "",
+    idTipoPosto: "",
+    idDistrito: query.idDistrito ?? "",
     idsMunicipios: query.idMunicipio ?? "",
-    qtd:           "200",
+    qtd: "999",
   });
 
   const dgegRes = await fetch(`${DGEG}/ListarDadosPostos?${dgegParams}`, {
@@ -160,106 +152,152 @@ export async function getPostos(query: PostoQuery): Promise<Posto[]> {
       "User-Agent": "Mozilla/5.0",
     },
   });
+
   if (!dgegRes.ok) throw new Error(`DGEG HTTP ${dgegRes.status}`);
+
   const dgegJson = await dgegRes.json();
   if (!dgegJson.status) throw new Error(dgegJson.mensagem ?? "Sem resultados");
 
   const postoIds: { Id: number }[] = dgegJson.resultado ?? [];
   const toEnrich = postoIds.slice(0, 999);
 
-  // 2. Enriquecer com GetDadosPostoMapa (preços de TODOS os combustíveis + morada)
-  const fuelLabel = FUELS.find(f => f.id === query.fuelId)?.label ?? "";
+  const fuelLabel = FUELS.find((f) => f.id === query.fuelId)?.label ?? "";
 
   const enriched = await Promise.all(
     toEnrich.map(async (p) => {
       const dados = await getDadosMapa(p.Id);
       const combs = dados?.Combustiveis ?? [];
 
-      // Todos os combustíveis com preço
       const combustiveis: CombustivelPreco[] = combs
-        .map(c => {
+        .map((c) => {
           const preco = parsePrecoStr(c.Preco);
-          return preco !== null ? { tipo: c.TipoCombustivel, preco, texto: `${preco.toFixed(3)} €/L` } : null;
+          return preco !== null
+            ? { tipo: c.TipoCombustivel, preco, texto: `${preco.toFixed(3)} €/L` }
+            : null;
         })
         .filter((x): x is CombustivelPreco => x !== null);
 
-      // Preço do combustível filtrado (match por fuelLabel)
-      const matchedComb = combs.find(c =>
-        c.TipoCombustivel.toLowerCase().includes(fuelLabel.toLowerCase().replace("gasolina especial", "especial").split(" ")[0])
-        || c.TipoCombustivel === fuelLabel
-      );
-      // Fallback: match mais directo
-      const matchedComb2 = combs.find(c => c.TipoCombustivel === fuelLabel)
-        ?? combs.find(c => c.TipoCombustivel.toLowerCase().includes(fuelLabel.toLowerCase().split(" ").slice(-1)[0]));
-      const preco = matchedComb2 ? parsePrecoStr(matchedComb2.Preco) : (combustiveis[0]?.preco ?? null);
+      const matchedComb =
+        combs.find(
+          (c) =>
+            c.TipoCombustivel.toLowerCase().includes(
+              fuelLabel.toLowerCase().replace("gasolina especial", "especial").split(" ")[0]
+            ) || c.TipoCombustivel === fuelLabel
+        ) ?? null;
+
+      const matchedComb2 =
+        combs.find((c) => c.TipoCombustivel === fuelLabel) ??
+        combs.find((c) =>
+          c.TipoCombustivel.toLowerCase().includes(
+            fuelLabel.toLowerCase().split(" ").slice(-1)[0]
+          )
+        ) ??
+        matchedComb;
+
+      const preco = matchedComb2
+        ? parsePrecoStr(matchedComb2.Preco)
+        : (combustiveis[0]?.preco ?? null);
 
       const horario = dados?.HorarioPosto
         ? [
             dados.HorarioPosto.DiasUteis && `Dias úteis: ${dados.HorarioPosto.DiasUteis}`,
-            dados.HorarioPosto.Sabado    && `Sáb: ${dados.HorarioPosto.Sabado}`,
-            dados.HorarioPosto.Domingo   && `Dom: ${dados.HorarioPosto.Domingo}`,
-          ].filter(Boolean).join(" · ")
+            dados.HorarioPosto.Sabado && `Sáb: ${dados.HorarioPosto.Sabado}`,
+            dados.HorarioPosto.Domingo && `Dom: ${dados.HorarioPosto.Domingo}`,
+          ]
+            .filter(Boolean)
+            .join(" · ")
         : "";
 
       return {
-        id:              p.Id,
-        nome:            dados?.Nome              ?? `Posto ${p.Id}`,
-        marca:           dados?.Marca             ?? "—",
-        distrito:        "—",
-        municipio:       dados?.Morada?.Localidade ?? "—",
-        morada:          dados?.Morada?.Morada    ?? "",
-        localidade:      dados?.Morada?.Localidade ?? "",
-        codPostal:       dados?.Morada?.CodPostal ?? "",
+        id: p.Id,
+        nome: dados?.Nome ?? `Posto ${p.Id}`,
+        marca: dados?.Marca ?? "—",
+        distrito: "—",
+        municipio: dados?.Morada?.Localidade ?? "—",
+        morada: dados?.Morada?.Morada ?? "",
+        localidade: dados?.Morada?.Localidade ?? "",
+        codPostal: dados?.Morada?.CodPostal ?? "",
         combustiveis,
         preco,
-        precoTexto:      preco !== null ? `${preco.toFixed(3)} €/L` : "Sem preço",
-        dataAtualizacao: dados?.DataAtualizacao   ?? null,
-        lat:             null as number | null,
-        lng:             null as number | null,
+        precoTexto: preco !== null ? `${preco.toFixed(3)} €/L` : "Sem preço",
+        dataAtualizacao: dados?.DataAtualizacao ?? null,
+        lat: null,
+        lng: null,
         horario,
       };
     })
   );
 
-  // 3. Coordenadas via ArcGIS (CodInterno = Id DGEG)
-  const ids = toEnrich.map(p => p.Id).join(",");
-  const arcParams = new URLSearchParams({
-    where:             `CodInterno IN (${ids})`,
-    outFields:         "CodInterno,nLatitude,nLongitude",
-    returnGeometry:    "false",
-    resultRecordCount: "500",
-    f:                 "json",
-  });
-  if (query.bbox) {
-    arcParams.set("geometry",     query.bbox);
-    arcParams.set("geometryType", "esriGeometryEnvelope");
-    arcParams.set("spatialRel",   "esriSpatialRelIntersects");
-    arcParams.set("inSR",         "4326");
+  const coordMap: Record<number, { lat: number; lng: number }> = {};
+  const idChunks: number[][] = [];
+
+  for (let i = 0; i < toEnrich.length; i += 150) {
+    idChunks.push(toEnrich.slice(i, i + 150).map((p) => p.Id));
   }
 
   try {
-    const arcRes = await fetch(`${ARCGIS}?${arcParams}`, { next: { revalidate: 300 } });
-    if (arcRes.ok) {
-      const arcJson = await arcRes.json();
-      const coordMap: Record<number, { lat: number; lng: number }> = {};
-      for (const f of (arcJson.features ?? []) as { attributes: Record<string, unknown> }[]) {
-        const a = f.attributes;
-        if (typeof a.CodInterno === "number" && typeof a.nLatitude === "number")
-          coordMap[a.CodInterno as number] = { lat: a.nLatitude as number, lng: a.nLongitude as number };
-      }
-      for (const p of enriched) {
-        const c = coordMap[p.id];
-        if (c) { p.lat = c.lat; p.lng = c.lng; }
+    await Promise.all(
+      idChunks.map(async (chunk) => {
+        const arcParams = new URLSearchParams({
+          where: `CodInterno IN (${chunk.join(",")})`,
+          outFields: "CodInterno,nLatitude,nLongitude",
+          returnGeometry: "false",
+          resultRecordCount: String(chunk.length),
+          f: "json",
+        });
+
+        if (query.bbox) {
+          arcParams.set("geometry", query.bbox);
+          arcParams.set("geometryType", "esriGeometryEnvelope");
+          arcParams.set("spatialRel", "esriSpatialRelIntersects");
+          arcParams.set("inSR", "4326");
+        }
+
+        const arcRes = await fetch(`${ARCGIS}?${arcParams}`, {
+          next: { revalidate: 300 },
+        });
+
+        if (!arcRes.ok) return;
+
+        const arcJson = await arcRes.json();
+
+        for (const f of (arcJson.features ?? []) as { attributes: Record<string, unknown> }[]) {
+          const a = f.attributes;
+
+          if (
+            typeof a.CodInterno === "number" &&
+            typeof a.nLatitude === "number" &&
+            typeof a.nLongitude === "number"
+          ) {
+            coordMap[a.CodInterno] = {
+              lat: a.nLatitude,
+              lng: a.nLongitude,
+            };
+          }
+        }
+      })
+    );
+
+    for (const p of enriched) {
+      const c = coordMap[p.id];
+      if (c) {
+        p.lat = c.lat;
+        p.lng = c.lng;
       }
     }
-  } catch { /* coords opcionais */ }
+  } catch {
+    /* coords opcionais */
+  }
 
-  // 4. Filtro search
   let result = enriched as Posto[];
+
   if (query.search) {
     const q = query.search.toLowerCase();
-    result = result.filter(p => [p.nome, p.marca, p.morada, p.localidade, p.codPostal]
-      .some(v => v.toLowerCase().includes(q)));
+    result = result.filter((p) =>
+      [p.nome, p.marca, p.morada, p.localidade, p.codPostal].some((v) =>
+        v.toLowerCase().includes(q)
+      )
+    );
   }
 
   return result.sort((a, b) => {

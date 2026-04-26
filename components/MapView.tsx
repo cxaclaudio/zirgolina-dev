@@ -60,6 +60,7 @@ const MARCA_CORES: Record<string, string> = {
   "NOVA": "#1D6FA4",
   "OZ ENERGIA": "#1D6FA4",
   "PINGO DOCE": "#006F3C",
+  "PLENERGY": "#FFB600",
   "PRIO": "#1D6FA4",
   "REPSOL": "#C45000",
   "SHELL": "#C8960C",
@@ -119,7 +120,6 @@ export default function MapView({
   invalidateRef,
 }: Props) {
   const mapRef = useRef<any>(null);
-  const clusterRef = useRef<any>(null);
   const pinsLayerRef = useRef<any>(null);
   const mapReadyRef = useRef(false);
   const distritosRef = useRef<any>(null);
@@ -165,31 +165,14 @@ export default function MapView({
       }).addTo(map);
 
       mapRef.current = map;
+      pinsLayerRef.current = L.layerGroup();
+      mapReadyRef.current = true;
 
       if (invalidateRef) {
         invalidateRef.current = () => {
           setTimeout(() => map.invalidateSize(), 150);
         };
       }
-
-      await import("leaflet.markercluster");
-
-      // @ts-ignore
-      clusterRef.current = L.markerClusterGroup({
-        maxClusterRadius: 45,
-        showCoverageOnHover: false,
-        disableClusteringAtZoom: 9,
-        iconCreateFunction: () =>
-          L.divIcon({
-            className: "",
-            html: `<div></div>`,
-            iconSize: [0, 0],
-            iconAnchor: [0, 0],
-          }),
-      });
-
-      pinsLayerRef.current = L.layerGroup();
-      mapReadyRef.current = true;
 
       const sD = { color: "#22c55e", weight: 1.6, fillColor: "#22c55e", fillOpacity: 0.06 };
       const sDH = { fillOpacity: 0.2, weight: 2.2 };
@@ -332,35 +315,25 @@ export default function MapView({
           };
         }
 
-        function syncLayers() {
-          const z = map.getZoom();
+function syncLayers() {
+  const z = map.getZoom();
 
-          if (mostrarPinsDistritoRef.current) {
-            if (municipiosRef.current && map.hasLayer(municipiosRef.current)) {
-              map.removeLayer(municipiosRef.current);
-            }
-            if (distritosRef.current && !map.hasLayer(distritosRef.current)) {
-              map.addLayer(distritosRef.current);
-            }
-            return;
-          }
-
-          if (z >= 9) {
-            if (distritosRef.current && map.hasLayer(distritosRef.current)) {
-              map.removeLayer(distritosRef.current);
-            }
-            if (municipiosRef.current && !map.hasLayer(municipiosRef.current)) {
-              map.addLayer(municipiosRef.current);
-            }
-          } else {
-            if (municipiosRef.current && map.hasLayer(municipiosRef.current)) {
-              map.removeLayer(municipiosRef.current);
-            }
-            if (distritosRef.current && !map.hasLayer(distritosRef.current)) {
-              map.addLayer(distritosRef.current);
-            }
-          }
-        }
+  if (z >= 9) {
+    if (distritosRef.current && map.hasLayer(distritosRef.current)) {
+      map.removeLayer(distritosRef.current);
+    }
+    if (municipiosRef.current && !map.hasLayer(municipiosRef.current)) {
+      map.addLayer(municipiosRef.current);
+    }
+  } else {
+    if (municipiosRef.current && map.hasLayer(municipiosRef.current)) {
+      map.removeLayer(municipiosRef.current);
+    }
+    if (distritosRef.current && !map.hasLayer(distritosRef.current)) {
+      map.addLayer(distritosRef.current);
+    }
+  }
+}
 
         map.on("zoomend", syncLayers);
         syncLayers();
@@ -378,7 +351,7 @@ export default function MapView({
     if (!mapRef.current) return;
 
     const tryAdd = (retries = 20) => {
-      if (!mapReadyRef.current || !clusterRef.current || !pinsLayerRef.current) {
+      if (!mapReadyRef.current || !pinsLayerRef.current) {
         if (retries > 0) setTimeout(() => tryAdd(retries - 1), 200);
         return;
       }
@@ -387,20 +360,15 @@ export default function MapView({
         const L = (await import("leaflet")).default;
         const map = mapRef.current;
 
-        if (map.hasLayer(clusterRef.current)) {
-          map.removeLayer(clusterRef.current);
-        }
         if (map.hasLayer(pinsLayerRef.current)) {
           map.removeLayer(pinsLayerRef.current);
         }
 
-        clusterRef.current.clearLayers();
         pinsLayerRef.current.clearLayers();
 
         if (!mostrarPins || postos.length === 0) return;
 
         const bounds: [number, number][] = [];
-        const usarCluster = !mostrarPinsDistrito;
 
         postos.forEach((posto) => {
           if (posto.lat === null || posto.lng === null) return;
@@ -460,20 +428,11 @@ export default function MapView({
             { maxWidth: 260 }
           );
 
-          if (usarCluster) {
-            clusterRef.current.addLayer(marker);
-          } else {
-            pinsLayerRef.current.addLayer(marker);
-          }
-
+          pinsLayerRef.current.addLayer(marker);
           bounds.push([posto.lat, posto.lng]);
         });
 
-        if (usarCluster) {
-          map.addLayer(clusterRef.current);
-        } else {
-          map.addLayer(pinsLayerRef.current);
-        }
+        map.addLayer(pinsLayerRef.current);
 
         if (bounds.length) {
           map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
@@ -482,7 +441,7 @@ export default function MapView({
     };
 
     tryAdd();
-  }, [postos, mostrarPins, mostrarPinsDistrito]);
+  }, [postos, mostrarPins]);
 
   return <div ref={containerRef} style={{ width: "100%", height: "100%", minHeight: "400px" }} />;
 }
