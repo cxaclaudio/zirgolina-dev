@@ -71,7 +71,6 @@ export default function Home() {
     setDoarOpen,
     handleSearchByRadius,
     handleRadiusMarcaChange,
-    handleReset,
     handleFilterChange,
     handleSearch,
     handleCopy,
@@ -167,7 +166,6 @@ export default function Home() {
           <FilterPanel
             onChange={handleFilterChange}
             onSearch={handleSearch}
-            onReset={handleReset}
             loading={loading}
             total={postosVisiveis.length}
             currentFuelId={fuelId}
