@@ -2,6 +2,8 @@ const DGEG = "https://precoscombustiveis.dgeg.gov.pt/api/PrecoComb";
 const ARCGIS =
   "https://services3.arcgis.com/L8wRKpelHTajqMnK/ArcGIS/rest/services/PostosAbastecimento/FeatureServer/0/query";
 
+const MAX_UPDATE_AGE_DAYS = 30;
+
 // IDs das marcas permitidas
 export const ALLOWED_MARCAS = [
   { id: "2", nome: "ALVES BANDEIRA" },
@@ -135,6 +137,38 @@ function parsePrecoStr(s: string): number | null {
   return m ? parseFloat(m[0]) : null;
 }
 
+function parseDataAtualizacao(s?: string | null): Date | null {
+  if (!s) return null;
+
+  const m = s
+    .trim()
+    .match(/^(\d{2})[-/](\d{2})[-/](\d{4})[ ,]+(\d{2}):(\d{2})$/);
+
+  if (!m) return null;
+
+  const [, dd, mm, yyyy, hh, min] = m;
+
+  const date = new Date(
+    Number(yyyy),
+    Number(mm) - 1,
+    Number(dd),
+    Number(hh),
+    Number(min)
+  );
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function hasFreshUpdate(dataAtualizacao?: string | null, maxDays = MAX_UPDATE_AGE_DAYS): boolean {
+  const dt = parseDataAtualizacao(dataAtualizacao);
+  if (!dt) return false;
+
+  const ageMs = Date.now() - dt.getTime();
+  const maxAgeMs = maxDays * 24 * 60 * 60 * 1000;
+
+  return ageMs <= maxAgeMs;
+}
+
 function normalizeText(s: string): string {
   return (s ?? "")
     .toLowerCase()
@@ -224,7 +258,7 @@ function matchesSearch(p: Posto, search?: string): boolean {
 async function getDadosMapa(id: number): Promise<DadosMapa | null> {
   try {
     const res = await fetch(`${DGEG}/GetDadosPostoMapa?id=${id}`, {
-      next: { revalidate: 300 },
+      cache: "no-store",
       headers: {
         Accept: "application/json",
         Referer: "https://precoscombustiveis.dgeg.gov.pt/",
@@ -417,6 +451,7 @@ export async function getPostos(query: PostoQuery): Promise<Posto[]> {
       })
     );
 
+    result = result.filter((p) => hasFreshUpdate(p.dataAtualizacao));
     result = result.filter((p) => matchesMarca(p.marca, query.marcaId));
     result = result.filter((p) => matchesSearch(p, query.search));
 
@@ -489,6 +524,7 @@ export async function getPostos(query: PostoQuery): Promise<Posto[]> {
 
   let result: Posto[] = enriched;
 
+  result = result.filter((p) => hasFreshUpdate(p.dataAtualizacao));
   result = result.filter((p) => matchesSearch(p, query.search));
 
   return result.sort((a, b) => {
