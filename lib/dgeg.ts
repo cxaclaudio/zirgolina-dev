@@ -280,11 +280,11 @@ export async function getPostos(query: PostoQuery): Promise<Posto[]> {
     idTipoPosto: "",
     idDistrito: query.idDistrito ?? "",
     idsMunicipios: municipiosParam,
-    qtd: "999",
+    qtd: "200",
   });
 
   const dgegRes = await fetch(`${DGEG}/ListarDadosPostos?${dgegParams.toString()}`, {
-    next: { revalidate: 300 },
+  cache: "no-store",
     headers: {
       Accept: "application/json",
       Referer: "https://precoscombustiveis.dgeg.gov.pt/",

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import type { Posto } from "@/lib/dgeg";
+import { getMarcaCor } from "@/lib/postos";
 
 interface Props {
   postos: Posto[];
@@ -47,29 +48,6 @@ const NOME_PARA_ID: Record<string, string> = {
   "acores": "20",
   "madeira": "21",
 };
-
-const MARCA_CORES: Record<string, string> = {
-  "ALVES BANDEIRA": "#1D6FA4",
-  "AUCHAN": "#E2001A",
-  "BP": "#006F3C",
-  "CEPSA": "#E2001A",
-  "GALP": "#FF6B00",
-  "INTERMARCHÉ": "#888888",
-  "LECLERC": "#1D6FA4",
-  "MOEVE": "#1D6FA4",
-  "NOVA": "#1D6FA4",
-  "OZ ENERGIA": "#1D6FA4",
-  "PINGO DOCE": "#006F3C",
-  "PLENERGY": "#FFB600",
-  "PRIO": "#1D6FA4",
-  "REPSOL": "#C45000",
-  "SHELL": "#C8960C",
-};
-
-function getMarcaCor(marca: string): string {
-  const key = Object.keys(MARCA_CORES).find((k) => marca.toUpperCase().includes(k));
-  return key ? MARCA_CORES[key] : "#22c55e";
-}
 
 function disCodeToDgeg(disCode: string) {
   return String(parseInt(disCode, 10));

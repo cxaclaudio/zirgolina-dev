@@ -217,22 +217,6 @@ useEffect(() => {
               </span>
             ) : (
               <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIdMunicipios([]);
-                    onChange(vals({ idMunicipio: "" }));
-                  }}
-                  className="btn-ghost"
-                  style={{
-                    alignSelf: "flex-start",
-                    fontSize: "0.66rem",
-                    padding: "0.22rem 0.45rem",
-                    marginBottom: "0.2rem",
-                  }}
-                >
-                  Limpar concelhos
-                </button>
 
                 {municipios.map((m) => {
                   const checked = idMunicipios.includes(String(m.Id));
@@ -258,7 +242,7 @@ useEffect(() => {
                         style={{
                           width: 16,
                           height: 16,
-                          accentColor: monoColor,
+                          accentColor: "#000000",
                           cursor: "pointer",
                           flexShrink: 0,
                         }}
@@ -316,102 +300,6 @@ useEffect(() => {
         </p>
       </div>
 
-      <div className="calc-sidebar">
-        <div
-          className="card"
-          style={{
-            padding: "0.875rem",
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.6rem",
-          }}
-        >
-          <p style={{ fontWeight: 700, fontSize: "0.8rem" }}>Calculadora</p>
-
-          <div>
-            <label className="field-label">Preço (€/L)</label>
-            <input
-              type="number"
-              step="0.001"
-              min="0"
-              max="5"
-              value={precoCalc}
-              onChange={(e) => setPrecoCalc(e.target.value)}
-              placeholder={cheapestPrice ? cheapestPrice.toFixed(3) : "0.000"}
-              className="field-input"
-            />
-          </div>
-
-          <div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "0.3rem",
-              }}
-            >
-              <label className="field-label" style={{ marginBottom: 0 }}>
-                Litros
-              </label>
-              <span style={{ fontWeight: 700, fontSize: "0.8rem", color: monoColor }}>
-                {litros} L
-              </span>
-            </div>
-
-            <input
-              type="range"
-              min="5"
-              max="100"
-              step="5"
-              value={litros}
-              onChange={(e) => setLitros(Number(e.target.value))}
-              style={{ width: "100%", accentColor: monoColor, cursor: "pointer" }}
-            />
-
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span className="text-muted" style={{ fontSize: "0.6rem" }}>
-                5 L
-              </span>
-              <span className="text-muted" style={{ fontSize: "0.6rem" }}>
-                100 L
-              </span>
-            </div>
-          </div>
-
-          <div
-            style={{
-              background: "var(--bg-input)",
-              borderRadius: "0.6rem",
-              padding: "0.65rem 0.875rem",
-              textAlign: "center",
-              border: "1px solid var(--border)",
-            }}
-          >
-            {totalCalc ? (
-              <>
-                <p
-                  style={{
-                    fontWeight: 800,
-                    fontSize: "1.4rem",
-                    color: monoColor,
-                    lineHeight: 1,
-                  }}
-                >
-                  {totalCalc} €
-                </p>
-                <p className="text-muted" style={{ fontSize: "0.62rem", marginTop: "0.2rem" }}>
-                  {litros} L × {precoNum.toFixed(3)} €/L
-                </p>
-              </>
-            ) : (
-              <p className="text-muted" style={{ fontSize: "0.72rem" }}>
-                Insira um preço ou pesquise postos
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
     </aside>
   );
 }

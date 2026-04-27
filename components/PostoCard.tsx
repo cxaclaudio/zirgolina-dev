@@ -1,59 +1,13 @@
 "use client";
+
 import { useState } from "react";
 import { useTheme } from "@/components/ThemeProvider";
 import type { Posto } from "@/lib/dgeg";
+import { getMarcaCor, getPrecoCombustivel } from "@/lib/postos";
 
 interface Props {
   posto: Posto;
   tipoAtivo?: "gasolina" | "gasoleo" | "gpl" | null;
-}
-
-const GASOLINA_TIPOS = [
-  "gasolina simples 95", "gasolina especial 95", "gasolina especial",
-  "gasolina simples", "gasolina 98", "gasolina",
-];
-const GASOLEO_EXCLUIR = /(agr[ií]col|biodiesel|b[0-9]+|colorid|aditivad)/i;
-const GASOLEO_TIPOS = ["gasóleo simples", "gasoleo simples", "gasóleo especial", "gasoleo especial", "gasóleo", "gasoleo"];
-const GPL_TIPOS = ["gpl"];
-
-const MARCA_CORES: Record<string, string> = {
-  "ALVES BANDEIRA": "#1D6FA4",
-  "AUCHAN": "#E2001A",
-  "BP": "#006F3C",
-  "CEPSA": "#E2001A",
-  "GALP": "#FF6B00",
-  "INTERMARCHÉ": "#888888",
-  "LECLERC": "#1D6FA4",
-  "MOEVE": "#1D6FA4",
-  "NOVA": "#1D6FA4",
-  "OZ ENERGIA": "#1D6FA4",
-  "PINGO DOCE": "#006F3C",
-  "PLENERGY": "#FFB600",
-  "PRIO": "#1D6FA4",
-  "REPSOL": "#C45000",
-  "SHELL": "#C8960C",
-};
-
-function getMarcaCor(marca: string): string {
-  const key = Object.keys(MARCA_CORES).find((k) =>
-    marca.toUpperCase().includes(k)
-  );
-  return key ? MARCA_CORES[key] : "var(--accent)";
-}
-
-function getPrecoDestaque(posto: Posto, tipo: "gasolina" | "gasoleo" | "gpl"): number | null {
-  const tipos =
-    tipo === "gasolina" ? GASOLINA_TIPOS :
-    tipo === "gasoleo" ? GASOLEO_TIPOS :
-    GPL_TIPOS;
-
-  const comb = posto.combustiveis?.find((c: any) => {
-    const t = c.tipo?.toLowerCase() ?? "";
-    if (tipo === "gasoleo" && GASOLEO_EXCLUIR.test(t)) return false;
-    return tipos.some((k) => t.includes(k));
-  });
-
-  return (comb as any)?.preco ?? null;
 }
 
 function formatDataAtualizacao(value: string | null | undefined): string {
@@ -82,37 +36,68 @@ export default function PostoCard({ posto, tipoAtivo }: Props) {
     : [];
 
   const precoDestaque: number | null = tipoAtivo
-    ? getPrecoDestaque(posto, tipoAtivo)
+    ? getPrecoCombustivel(posto, tipoAtivo)
     : posto.preco;
 
-  const precoTexto = precoDestaque != null
-    ? `${precoDestaque.toFixed(3)} €/L`
-    : posto.precoTexto ?? "—";
+  const precoTexto =
+    precoDestaque != null
+      ? `${precoDestaque.toFixed(3)} €/L`
+      : posto.precoTexto ?? "—";
 
   const precoColor =
-    tipoAtivo === "gasoleo" ? (dark ? "#ffffff" : "#000000") :
-    tipoAtivo === "gpl" ? "#00A8FF" :
-    "var(--accent)";
+    tipoAtivo === "gasoleo"
+      ? dark
+        ? "#ffffff"
+        : "#000000"
+      : tipoAtivo === "gpl"
+      ? "#00A8FF"
+      : "var(--accent)";
 
   const ultimaAtualizacao = formatDataAtualizacao(posto.dataAtualizacao);
 
   function handleDirecoes(e: React.MouseEvent) {
     e.stopPropagation();
-    const url = posto.lat && posto.lng
-      ? `https://www.google.com/maps/dir/?api=1&destination=${posto.lat},${posto.lng}`
-      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-          [posto.nome, posto.morada, posto.localidade, posto.codPostal].filter(Boolean).join(", ")
-        )}`;
+
+    const url =
+      posto.lat && posto.lng
+        ? `https://www.google.com/maps/dir/?api=1&destination=${posto.lat},${posto.lng}`
+        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+            [posto.nome, posto.morada, posto.localidade, posto.codPostal]
+              .filter(Boolean)
+              .join(", ")
+          )}`;
+
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
   return (
-    <article className="card" style={{ padding: "0.6rem 0.875rem", fontSize: "0.8rem" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.6rem" }}>
+    <article
+      className="card"
+      style={{ padding: "0.6rem 0.875rem", fontSize: "0.8rem" }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: "0.6rem",
+        }}
+      >
         <div style={{ minWidth: 0, flex: 1 }}>
-          <h3 style={{ fontWeight: 700, fontSize: "0.82rem", lineHeight: 1.3, margin: 0 }}>
-            <span style={{ color: getMarcaCor(posto.marca ?? "") }}>{posto.marca}</span>
-            <span style={{ color: "var(--text-muted)", margin: "0 0.3rem" }}>|</span>
+          <h3
+            style={{
+              fontWeight: 700,
+              fontSize: "0.82rem",
+              lineHeight: 1.3,
+              margin: 0,
+            }}
+          >
+            <span style={{ color: getMarcaCor(posto.marca ?? "", "var(--accent)") }}>
+              {posto.marca}
+            </span>
+            <span style={{ color: "var(--text-muted)", margin: "0 0.3rem" }}>
+              |
+            </span>
             {posto.nome}
           </h3>
 
@@ -183,13 +168,21 @@ export default function PostoCard({ posto, tipoAtivo }: Props) {
                 alignItems: "center",
                 padding: "0.25rem 0.7rem",
                 background: i % 2 === 0 ? "var(--bg-input)" : "transparent",
-                borderBottom: i < posto.combustiveis.length - 1 ? "1px solid var(--border)" : "none",
+                borderBottom:
+                  i < posto.combustiveis.length - 1
+                    ? "1px solid var(--border)"
+                    : "none",
               }}
             >
               <span className="text-muted" style={{ fontSize: "0.68rem" }}>
                 {c.tipo}
               </span>
-              <strong style={{ fontSize: "0.72rem", color: dark ? "#aaaaaa" : "#555555" }}>
+              <strong
+                style={{
+                  fontSize: "0.72rem",
+                  color: dark ? "#aaaaaa" : "#555555",
+                }}
+              >
                 {c.texto}
               </strong>
             </div>
@@ -228,7 +221,10 @@ export default function PostoCard({ posto, tipoAtivo }: Props) {
             height="10"
             viewBox="0 0 10 10"
             fill="none"
-            style={{ transform: detalhesOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}
+            style={{
+              transform: detalhesOpen ? "rotate(180deg)" : "none",
+              transition: "transform 0.2s",
+            }}
           >
             <path
               d="M2 3.5L5 6.5L8 3.5"
@@ -252,26 +248,53 @@ export default function PostoCard({ posto, tipoAtivo }: Props) {
             minWidth: 0,
           }}
         >
-          <span style={{ fontSize: "0.5rem" }}>Última atualização: {ultimaAtualizacao}</span>
+          <span style={{ fontSize: "0.5rem" }}>
+            Última atualização: {ultimaAtualizacao}
+          </span>
         </div>
       </div>
 
       {detalhesOpen && (
-        <div style={{ marginTop: "0.4rem", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "baseline" }}>
+        <div
+          style={{
+            marginTop: "0.4rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.35rem",
+          }}
+        >
+          <div
+            style={{ display: "flex", gap: "0.5rem", alignItems: "baseline" }}
+          >
             <p className="field-label" style={{ margin: 0, flexShrink: 0 }}>
               Morada:
             </p>
-            <p style={{ fontSize: "0.72rem", fontWeight: 500, margin: 0, color: "var(--text)" }}>
+            <p
+              style={{
+                fontSize: "0.72rem",
+                fontWeight: 500,
+                margin: 0,
+                color: "var(--text)",
+              }}
+            >
               {posto.morada || "—"}
             </p>
           </div>
 
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "baseline" }}>
+          <div
+            style={{ display: "flex", gap: "0.5rem", alignItems: "baseline" }}
+          >
             <p className="field-label" style={{ margin: 0, flexShrink: 0 }}>
               Cód. Postal:
             </p>
-            <p style={{ fontSize: "0.72rem", fontWeight: 500, margin: 0, color: "var(--text)" }}>
+            <p
+              style={{
+                fontSize: "0.72rem",
+                fontWeight: 500,
+                margin: 0,
+                color: "var(--text)",
+              }}
+            >
               {posto.codPostal || "—"}
             </p>
           </div>
@@ -281,9 +304,14 @@ export default function PostoCard({ posto, tipoAtivo }: Props) {
               Horário:
             </p>
             {horarioLines.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.1rem" }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "0.1rem" }}
+              >
                 {horarioLines.map((l, i) => (
-                  <p key={i} style={{ fontSize: "0.72rem", margin: 0, color: "var(--text)" }}>
+                  <p
+                    key={i}
+                    style={{ fontSize: "0.72rem", margin: 0, color: "var(--text)" }}
+                  >
                     {l}
                   </p>
                 ))}
