@@ -1,4 +1,5 @@
 "use client";
+
 import dynamic from "next/dynamic";
 import FilterPanel from "@/components/FilterPanel";
 import LocationRadiusPanel from "@/components/LocationRadiusPanel";
@@ -8,6 +9,7 @@ import DonationModal from "@/components/DonationModal";
 import PostosListPanel from "@/components/PostosListPanel";
 import { useTheme } from "@/components/ThemeProvider";
 import { useHomePageLogic } from "@/hooks/useHomePageLogic";
+import type { CombustivelOrdenacao } from "@/hooks/homePage.utils";
 
 const MapView = dynamic(() => import("@/components/MapView"), {
   ssr: false,
@@ -192,7 +194,9 @@ export default function Home() {
           hasRadiusSearch={hasRadiusSearch}
           activeRadiusKm={activeRadiusKm}
           ordenacao={ordenacao}
-          setOrdenacao={setOrdenacao}
+          setOrdenacao={(value: string) =>
+            setOrdenacao(value as CombustivelOrdenacao)
+          }
           tipoAtivo={tipoAtivo}
         />
 
