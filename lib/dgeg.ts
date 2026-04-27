@@ -323,8 +323,10 @@ async function getIdsFromArcGISBbox(
 
   const arcJson = await arcRes.json();
 
-  return (arcJson.features ?? [])
-    .map((f: { attributes?: Record<string, unknown> }) => {
+  return ((arcJson.features ?? []) as Array<{
+    attributes?: Record<string, unknown>;
+  }>)
+    .map((f) => {
       const a = f.attributes ?? {};
 
       if (
@@ -341,7 +343,11 @@ async function getIdsFromArcGISBbox(
         lng: a.nLongitude,
       };
     })
-    .filter((x): x is { id: number; lat: number; lng: number } => x !== null);
+    .filter(
+      (
+        x: { id: number; lat: number; lng: number } | null
+      ): x is { id: number; lat: number; lng: number } => x !== null
+    );
 }
 
 function mapDadosToPosto(
