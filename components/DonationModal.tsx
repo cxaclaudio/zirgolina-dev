@@ -74,7 +74,7 @@ export default function DonationModal({
           de como contribuir abaixo. Se queres contribuir de outra forma, por favor envia um email
           para{" "}
           <a href="mailto:zirgolina@sapo.pt" style={{ color: "var(--accent)" }}>
-            zirgolina@tuta.io
+            zirgolina@sapo.pt
           </a>
           .
         </p>
