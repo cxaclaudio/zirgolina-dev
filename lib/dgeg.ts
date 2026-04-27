@@ -14,6 +14,7 @@ export const ALLOWED_MARCAS = [
   { id: "72", nome: "MOEVE" },
   { id: "78", nome: "NOVA" },
   { id: "45", nome: "OZ ENERGIA" },
+  { id: "71", nome: "PETROPRIX" },
   { id: "52", nome: "PINGO DOCE" },
   { id: "74", nome: "PLENERGY" },
   { id: "53", nome: "PRIO" },

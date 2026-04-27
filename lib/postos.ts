@@ -36,6 +36,7 @@ const MARCA_CORES: Record<string, string> = {
   "MOEVE": "#1D6FA4",
   "NOVA": "#1D6FA4",
   "OZ ENERGIA": "#1D6FA4",
+  "PETROPRIX": "#D63615",
   "PINGO DOCE": "#006F3C",
   "PLENERGY": "#FFB600",
   "PRIO": "#1D6FA4",
