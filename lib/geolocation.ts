@@ -91,3 +91,15 @@ export function isValidPortugalLikeCoord(
   if (lat == null || lng == null) return false;
   return lat >= 36.8 && lat <= 42.3 && lng >= -9.7 && lng <= -6.0;
 }
+
+export function makeBBoxFromRadius(lat: number, lng: number, radiusKm: number) {
+  const latDelta = radiusKm / 111;
+  const lngDelta = radiusKm / (111 * Math.cos((lat * Math.PI) / 180));
+
+  const minLng = lng - lngDelta;
+  const minLat = lat - latDelta;
+  const maxLng = lng + lngDelta;
+  const maxLat = lat + latDelta;
+
+  return `${minLng},${minLat},${maxLng},${maxLat}`;
+}

@@ -88,8 +88,8 @@ interface DadosMapa {
 export interface PostoQuery {
   fuelId: string;
   idDistrito?: string;
-  idMunicipio?: string;   // compatibilidade com frontend/route atuais
-  idMunicipios?: string;  // suporte multi-select / nome novo
+  idMunicipio?: string;
+  idMunicipios?: string;
   marcaId?: string;
   search?: string;
   bbox?: string;
@@ -135,7 +135,7 @@ function parsePrecoStr(s: string): number | null {
 }
 
 function normalizeText(s: string): string {
-  return s
+  return (s ?? "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
@@ -146,12 +146,14 @@ function normalizeText(s: string): string {
 function normalizeMunicipiosParam(value?: string): string {
   if (!value) return "";
 
-  return [...new Set(
-    value
-      .split(",")
-      .map((v) => v.trim())
-      .filter(Boolean)
-  )].join(",");
+  return [
+    ...new Set(
+      value
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean)
+    ),
+  ].join(",");
 }
 
 function pickPrecoCombustivel(
@@ -189,6 +191,33 @@ function buildHorario(dados: DadosMapa | null): string {
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+function marcaNameFromId(marcaId?: string): string {
+  if (!marcaId) return "";
+  return ALLOWED_MARCAS.find((m) => m.id === marcaId)?.nome ?? "";
+}
+
+function matchesMarca(postoMarca: string, marcaId?: string): boolean {
+  if (!marcaId) return true;
+
+  const marcaNome = marcaNameFromId(marcaId);
+  if (!marcaNome) return true;
+
+  const a = normalizeText(postoMarca);
+  const b = normalizeText(marcaNome);
+
+  return a === b || a.includes(b) || b.includes(a);
+}
+
+function matchesSearch(p: Posto, search?: string): boolean {
+  if (!search?.trim()) return true;
+
+  const q = search.toLowerCase();
+
+  return [p.nome, p.marca, p.morada, p.localidade, p.codPostal].some((v) =>
+    v.toLowerCase().includes(q)
+  );
 }
 
 async function getDadosMapa(id: number): Promise<DadosMapa | null> {
@@ -269,22 +298,140 @@ async function getCoordsArcGIS(
   return coordMap;
 }
 
+async function getIdsFromArcGISBbox(
+  bbox: string
+): Promise<Array<{ id: number; lat: number; lng: number }>> {
+  const arcParams = new URLSearchParams({
+    where: "1=1",
+    outFields: "CodInterno,nLatitude,nLongitude",
+    returnGeometry: "false",
+    resultRecordCount: "500",
+    geometry: bbox,
+    geometryType: "esriGeometryEnvelope",
+    spatialRel: "esriSpatialRelIntersects",
+    inSR: "4326",
+    f: "json",
+  });
+
+  const arcRes = await fetch(`${ARCGIS}?${arcParams}`, {
+    next: { revalidate: 300 },
+  });
+
+  if (!arcRes.ok) {
+    throw new Error(`ArcGIS HTTP ${arcRes.status}`);
+  }
+
+  const arcJson = await arcRes.json();
+
+  return (arcJson.features ?? [])
+    .map((f: { attributes?: Record<string, unknown> }) => {
+      const a = f.attributes ?? {};
+
+      if (
+        typeof a.CodInterno !== "number" ||
+        typeof a.nLatitude !== "number" ||
+        typeof a.nLongitude !== "number"
+      ) {
+        return null;
+      }
+
+      return {
+        id: a.CodInterno,
+        lat: a.nLatitude,
+        lng: a.nLongitude,
+      };
+    })
+    .filter((x): x is { id: number; lat: number; lng: number } => x !== null);
+}
+
+function mapDadosToPosto(
+  id: number,
+  dados: DadosMapa | null,
+  fuelLabel: string,
+  coords?: { lat: number; lng: number }
+): Posto {
+  const combs = dados?.Combustiveis ?? [];
+
+  const combustiveis: CombustivelPreco[] = combs
+    .map((c) => {
+      const preco = parsePrecoStr(c.Preco);
+      return preco !== null
+        ? {
+            tipo: c.TipoCombustivel,
+            preco,
+            texto: `${preco.toFixed(3)} €/L`,
+          }
+        : null;
+    })
+    .filter((x): x is CombustivelPreco => x !== null);
+
+  const preco = pickPrecoCombustivel(combs, fuelLabel, combustiveis);
+
+  return {
+    id,
+    nome: dados?.Nome ?? `Posto ${id}`,
+    marca: dados?.Marca ?? "—",
+    distrito: "—",
+    municipio: dados?.Morada?.Localidade ?? "—",
+    morada: dados?.Morada?.Morada ?? "",
+    localidade: dados?.Morada?.Localidade ?? "",
+    codPostal: dados?.Morada?.CodPostal ?? "",
+    combustiveis,
+    preco,
+    precoTexto: preco !== null ? `${preco.toFixed(3)} €/L` : "Sem preço",
+    dataAtualizacao: dados?.DataAtualizacao ?? null,
+    lat: coords?.lat ?? null,
+    lng: coords?.lng ?? null,
+    horario: buildHorario(dados),
+  };
+}
+
 export async function getPostos(query: PostoQuery): Promise<Posto[]> {
   const municipiosParam = normalizeMunicipiosParam(
     query.idMunicipios ?? query.idMunicipio
   );
 
+  const fuelLabel = FUELS.find((f) => f.id === query.fuelId)?.label ?? "";
+
+  // Fluxo especial para pesquisa por raio:
+  // primeiro obtemos candidatos geográficos no ArcGIS via bbox,
+  // depois enriquecemos com detalhes/preços na DGEG.
+  if (query.bbox && !query.idDistrito && !municipiosParam) {
+    const nearby = await getIdsFromArcGISBbox(query.bbox);
+
+    if (nearby.length === 0) {
+      return [];
+    }
+
+    let result = await Promise.all(
+      nearby.map(async ({ id, lat, lng }) => {
+        const dados = await getDadosMapa(id);
+        return mapDadosToPosto(id, dados, fuelLabel, { lat, lng });
+      })
+    );
+
+    result = result.filter((p) => matchesMarca(p.marca, query.marcaId));
+    result = result.filter((p) => matchesSearch(p, query.search));
+
+    return result.sort((a, b) => {
+      if (a.preco === null) return 1;
+      if (b.preco === null) return -1;
+      return a.preco - b.preco;
+    });
+  }
+
+  // Fluxo normal: DGEG primeiro, ArcGIS depois
   const dgegParams = new URLSearchParams({
     idsTiposComb: query.fuelId,
     idMarca: query.marcaId ?? "",
     idTipoPosto: "",
     idDistrito: query.idDistrito ?? "",
     idsMunicipios: municipiosParam,
-    qtd: "200",
+    qtd: "999",
   });
 
   const dgegRes = await fetch(`${DGEG}/ListarDadosPostos?${dgegParams.toString()}`, {
-  cache: "no-store",
+    cache: "no-store",
     headers: {
       Accept: "application/json",
       Referer: "https://precoscombustiveis.dgeg.gov.pt/",
@@ -309,45 +456,10 @@ export async function getPostos(query: PostoQuery): Promise<Posto[]> {
     return [];
   }
 
-  const fuelLabel = FUELS.find((f) => f.id === query.fuelId)?.label ?? "";
-
   const enriched: Posto[] = await Promise.all(
     toEnrich.map(async (p): Promise<Posto> => {
       const dados = await getDadosMapa(p.Id);
-      const combs = dados?.Combustiveis ?? [];
-
-      const combustiveis: CombustivelPreco[] = combs
-        .map((c) => {
-          const preco = parsePrecoStr(c.Preco);
-          return preco !== null
-            ? {
-                tipo: c.TipoCombustivel,
-                preco,
-                texto: `${preco.toFixed(3)} €/L`,
-              }
-            : null;
-        })
-        .filter((x): x is CombustivelPreco => x !== null);
-
-      const preco = pickPrecoCombustivel(combs, fuelLabel, combustiveis);
-
-      return {
-        id: p.Id,
-        nome: dados?.Nome ?? `Posto ${p.Id}`,
-        marca: dados?.Marca ?? "—",
-        distrito: "—",
-        municipio: dados?.Morada?.Localidade ?? "—",
-        morada: dados?.Morada?.Morada ?? "",
-        localidade: dados?.Morada?.Localidade ?? "",
-        codPostal: dados?.Morada?.CodPostal ?? "",
-        combustiveis,
-        preco,
-        precoTexto: preco !== null ? `${preco.toFixed(3)} €/L` : "Sem preço",
-        dataAtualizacao: dados?.DataAtualizacao ?? null,
-        lat: null,
-        lng: null,
-        horario: buildHorario(dados),
-      };
+      return mapDadosToPosto(p.Id, dados, fuelLabel);
     })
   );
 
@@ -370,14 +482,7 @@ export async function getPostos(query: PostoQuery): Promise<Posto[]> {
 
   let result: Posto[] = enriched;
 
-  if (query.search) {
-    const q = query.search.toLowerCase();
-    result = result.filter((p) =>
-      [p.nome, p.marca, p.morada, p.localidade, p.codPostal].some((v) =>
-        v.toLowerCase().includes(q)
-      )
-    );
-  }
+  result = result.filter((p) => matchesSearch(p, query.search));
 
   return result.sort((a, b) => {
     if (a.preco === null) return 1;

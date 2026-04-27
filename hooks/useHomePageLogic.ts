@@ -7,6 +7,7 @@ import {
   getUserLocation,
   haversineKm,
   isValidPortugalLikeCoord,
+  makeBBoxFromRadius,
 } from "@/lib/geolocation";
 import { getPrecoCombustivel, temCombustivel } from "@/lib/postos";
 import {
@@ -237,6 +238,7 @@ export function useHomePageLogic() {
 
         const params = new URLSearchParams();
         params.set("fuelId", fuelId);
+        params.set("bbox", makeBBoxFromRadius(loc.lat, loc.lng, radiusKm));
 
         const res = await fetch(`/api/combustivel?${params.toString()}`);
         const json = await res.json();
@@ -478,17 +480,17 @@ export function useHomePageLogic() {
     [radiusMarcaId]
   );
 
-const postosBaseFiltrados = useMemo(() => {
-  if (!hasRadiusSearch) return postos;
+  const postosBaseFiltrados = useMemo(() => {
+    if (!hasRadiusSearch) return postos;
 
-  const base = radiusBasePostos.length > 0 ? radiusBasePostos : postos;
+    const base = radiusBasePostos.length > 0 ? radiusBasePostos : postos;
 
-  if (!selectedRadiusMarca) return base;
+    if (!selectedRadiusMarca) return base;
 
-  return base.filter(
-    (p) => normText(p.marca) === normText(selectedRadiusMarca.nome)
-  );
-}, [hasRadiusSearch, radiusBasePostos, postos, selectedRadiusMarca]);
+    return base.filter(
+      (p) => normText(p.marca) === normText(selectedRadiusMarca.nome)
+    );
+  }, [hasRadiusSearch, radiusBasePostos, postos, selectedRadiusMarca]);
 
   const tipoAtivo = getTipoAtivo(ordenacao);
 
