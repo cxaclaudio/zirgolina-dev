@@ -8,6 +8,7 @@ type Props = {
   onOpenMap: () => void;
   onToggleCalc: () => void;
   onOpenDonate: () => void;
+  onGoHome: () => void;
   calcBtnRef: MutableRefObject<HTMLButtonElement | null>;
   headerHeight: number;
 };
@@ -18,6 +19,7 @@ export default function HomeHeader({
   onOpenMap,
   onToggleCalc,
   onOpenDonate,
+  onGoHome,
   calcBtnRef,
   headerHeight,
 }: Props) {
@@ -67,9 +69,9 @@ export default function HomeHeader({
       >
         <button
           type="button"
-          onClick={() => window.location.reload()}
-          title="Recarregar página"
-          aria-label="Recarregar página"
+          onClick={onGoHome}
+          title="Ir para a homepage"
+          aria-label="Ir para a homepage"
           style={{
             display: "flex",
             alignItems: "center",
@@ -248,107 +250,107 @@ export default function HomeHeader({
           </button>
         </div>
 
-<div className="desktop-only" style={{ display: "flex", gap: "0.5rem" }}>
-  <button
-    ref={calcBtnRef}
-    type="button"
-    onClick={onToggleCalc}
-    style={desktopLabeledBtnStyle}
-    title="Calculadora"
-    aria-label="Abrir calculadora"
-  >
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="4" y="2" width="16" height="20" rx="2" />
-      <rect x="7" y="5" width="10" height="4" rx="1" />
-      <circle cx="8" cy="14" r="0.8" fill="currentColor" />
-      <circle cx="12" cy="14" r="0.8" fill="currentColor" />
-      <circle cx="16" cy="14" r="0.8" fill="currentColor" />
-      <circle cx="8" cy="18" r="0.8" fill="currentColor" />
-      <circle cx="12" cy="18" r="0.8" fill="currentColor" />
-      <circle cx="16" cy="18" r="0.8" fill="currentColor" />
-    </svg>
-    <span>Calculadora</span>
-  </button>
+        <div className="desktop-only" style={{ display: "flex", gap: "0.5rem" }}>
+          <button
+            ref={calcBtnRef}
+            type="button"
+            onClick={onToggleCalc}
+            style={desktopLabeledBtnStyle}
+            title="Calculadora"
+            aria-label="Abrir calculadora"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="4" y="2" width="16" height="20" rx="2" />
+              <rect x="7" y="5" width="10" height="4" rx="1" />
+              <circle cx="8" cy="14" r="0.8" fill="currentColor" />
+              <circle cx="12" cy="14" r="0.8" fill="currentColor" />
+              <circle cx="16" cy="14" r="0.8" fill="currentColor" />
+              <circle cx="8" cy="18" r="0.8" fill="currentColor" />
+              <circle cx="12" cy="18" r="0.8" fill="currentColor" />
+              <circle cx="16" cy="18" r="0.8" fill="currentColor" />
+            </svg>
+            <span>Calculadora</span>
+          </button>
 
-  <button
-    type="button"
-    onClick={onOpenDonate}
-    style={desktopLabeledBtnStyle}
-    title="Doar"
-    aria-label="Abrir janela de apoio ao projeto"
-  >
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
-      <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
-      <line x1="6" y1="1" x2="6" y2="4" />
-      <line x1="10" y1="1" x2="10" y2="4" />
-      <line x1="14" y1="1" x2="14" y2="4" />
-    </svg>
-    <span>Doar</span>
-  </button>
+          <button
+            type="button"
+            onClick={onOpenDonate}
+            style={desktopLabeledBtnStyle}
+            title="Doar"
+            aria-label="Abrir janela de apoio ao projeto"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
+              <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
+              <line x1="6" y1="1" x2="6" y2="4" />
+              <line x1="10" y1="1" x2="10" y2="4" />
+              <line x1="14" y1="1" x2="14" y2="4" />
+            </svg>
+            <span>Doar</span>
+          </button>
 
-  <button
-    type="button"
-    onClick={toggleTheme}
-    style={baseBtnStyle}
-    title="Tema"
-    aria-label="Alternar tema"
-  >
-    {dark ? (
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="12" cy="12" r="4" />
-        <line x1="12" y1="2" x2="12" y2="5" />
-        <line x1="12" y1="19" x2="12" y2="22" />
-        <line x1="4.22" y1="4.22" x2="6.34" y2="6.34" />
-        <line x1="17.66" y1="17.66" x2="19.78" y2="19.78" />
-        <line x1="2" y1="12" x2="5" y2="12" />
-        <line x1="19" y1="12" x2="22" y2="12" />
-        <line x1="4.22" y1="19.78" x2="6.34" y2="17.66" />
-        <line x1="17.66" y1="6.34" x2="19.78" y2="4.22" />
-      </svg>
-    ) : (
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-      </svg>
-    )}
-  </button>
-</div>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            style={baseBtnStyle}
+            title="Tema"
+            aria-label="Alternar tema"
+          >
+            {dark ? (
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="4" />
+                <line x1="12" y1="2" x2="12" y2="5" />
+                <line x1="12" y1="19" x2="12" y2="22" />
+                <line x1="4.22" y1="4.22" x2="6.34" y2="6.34" />
+                <line x1="17.66" y1="17.66" x2="19.78" y2="19.78" />
+                <line x1="2" y1="12" x2="5" y2="12" />
+                <line x1="19" y1="12" x2="22" y2="12" />
+                <line x1="4.22" y1="19.78" x2="6.34" y2="17.66" />
+                <line x1="17.66" y1="6.34" x2="19.78" y2="4.22" />
+              </svg>
+            ) : (
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
     </header>
   );

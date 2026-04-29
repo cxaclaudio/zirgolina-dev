@@ -75,6 +75,7 @@ export default function Home() {
     handleRadiusMarcaChange,
     handleFilterChange,
     handleSearch,
+    handleReset,
     handleCopy,
     updateCalcPosition,
     postos,
@@ -136,6 +137,13 @@ export default function Home() {
           setCalcOpen((v) => !v);
         }}
         onOpenDonate={() => setDoarOpen(true)}
+        onGoHome={() => {
+          handleReset();
+          setMapaOpen(false);
+          setCalcOpen(false);
+          setDoarOpen(false);
+          window.location.replace("/");
+        }}
         calcBtnRef={calcBtnRef}
         headerHeight={HEADER_H}
       />

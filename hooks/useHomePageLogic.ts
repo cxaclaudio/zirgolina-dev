@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ALLOWED_MARCAS, type Posto } from "@/lib/dgeg";
 import type { FilterValues } from "@/components/FilterPanel";
 import {
@@ -53,9 +52,6 @@ const VALID_SORTS: CombustivelOrdenacao[] = [
 ];
 
 export function useHomePageLogic() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   const [postos, setPostos] = useState<Posto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -165,56 +161,56 @@ export function useHomePageLogic() {
     [fuelId, ordenacao, activeRadiusKm, userLocation, radiusMarcaId]
   );
 
-  const syncUrl = useCallback(
-    (snap: UrlSnapshot) => {
-      const params = new URLSearchParams();
+const syncUrl = useCallback((snap: UrlSnapshot) => {
+  if (typeof window === "undefined") return;
 
-      if (snap.fuelId && snap.fuelId !== "3201") {
-        params.set("fuel", snap.fuelId);
-      }
+  const params = new URLSearchParams();
 
-      if (snap.idDistrito) {
-        params.set("d", snap.idDistrito);
-      }
+  if (snap.fuelId && snap.fuelId !== "3201") {
+    params.set("fuel", snap.fuelId);
+  }
 
-      if (snap.idMunicipio) {
-        params.set("m", snap.idMunicipio);
-      }
+  if (snap.idDistrito) {
+    params.set("d", snap.idDistrito);
+  }
 
-      if (snap.marcaIds.length > 0) {
-        params.set("brands", snap.marcaIds.join(","));
-      }
+  if (snap.idMunicipio) {
+    params.set("m", snap.idMunicipio);
+  }
 
-      if (snap.search) {
-        params.set("q", snap.search);
-      }
+  if (snap.marcaIds.length > 0) {
+    params.set("brands", snap.marcaIds.join(","));
+  }
 
-      if (snap.ordenacao !== "gasolina_asc") {
-        params.set("sort", snap.ordenacao);
-      }
+  if (snap.search) {
+    params.set("q", snap.search);
+  }
 
-      if (snap.radiusKm !== null && snap.lat !== null && snap.lng !== null) {
-        params.set("r", String(snap.radiusKm));
-        params.set("lat", String(snap.lat));
-        params.set("lng", String(snap.lng));
+  if (snap.ordenacao !== "gasolina_asc") {
+    params.set("sort", snap.ordenacao);
+  }
 
-        if (snap.radiusMarcaId) {
-          params.set("rb", snap.radiusMarcaId);
-        }
-      }
+  if (snap.radiusKm !== null && snap.lat !== null && snap.lng !== null) {
+    params.set("r", String(snap.radiusKm));
+    params.set("lat", String(snap.lat));
+    params.set("lng", String(snap.lng));
 
-      const nextQs = params.toString();
-      const nextUrl = nextQs ? `${pathname}?${nextQs}` : pathname;
+    if (snap.radiusMarcaId) {
+      params.set("rb", snap.radiusMarcaId);
+    }
+  }
 
-      const currentQs = searchParams.toString();
-      const currentUrl = currentQs ? `${pathname}?${currentQs}` : pathname;
+  const nextQs = params.toString();
+  const nextUrl = nextQs
+    ? `${window.location.pathname}?${nextQs}`
+    : window.location.pathname;
 
-      if (nextUrl !== currentUrl) {
-        router.replace(nextUrl, { scroll: false });
-      }
-    },
-    [pathname, router, searchParams]
-  );
+  const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+  if (nextUrl !== currentUrl) {
+    window.history.replaceState(null, "", nextUrl);
+  }
+}, []);
 
   const clearRadiusSearchState = useCallback(() => {
     setActiveRadiusKm(null);
@@ -423,69 +419,71 @@ export function useHomePageLogic() {
     []
   );
 
-  useEffect(() => {
-    if (urlReady) return;
+useEffect(() => {
+  if (urlReady || typeof window === "undefined") return;
 
-    const fuelFromUrl = searchParams.get("fuel") || "3201";
-    const distritoFromUrl = searchParams.get("d") || "";
-    const municipiosFromUrl = searchParams.get("m") || "";
-    const marcaIdsFromUrl = (searchParams.get("brands") || "")
-      .split(",")
-      .map((x) => x.trim())
-      .filter(Boolean);
+  const params = new URLSearchParams(window.location.search);
 
-    const searchFromUrl = searchParams.get("q") || "";
-    const sortCandidate = searchParams.get("sort");
-    const sortFromUrl: CombustivelOrdenacao =
-      sortCandidate && VALID_SORTS.includes(sortCandidate as CombustivelOrdenacao)
-        ? (sortCandidate as CombustivelOrdenacao)
-        : "gasolina_asc";
+  const fuelFromUrl = params.get("fuel") || "3201";
+  const distritoFromUrl = params.get("d") || "";
+  const municipiosFromUrl = params.get("m") || "";
+  const marcaIdsFromUrl = (params.get("brands") || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
 
-    const radiusParam = searchParams.get("r");
-    const radiusKm =
-      radiusParam === "5" || radiusParam === "10" || radiusParam === "20"
-        ? (Number(radiusParam) as 5 | 10 | 20)
-        : null;
+  const searchFromUrl = params.get("q") || "";
+  const sortCandidate = params.get("sort");
+  const sortFromUrl: CombustivelOrdenacao =
+    sortCandidate && VALID_SORTS.includes(sortCandidate as CombustivelOrdenacao)
+      ? (sortCandidate as CombustivelOrdenacao)
+      : "gasolina_asc";
 
-    const latParam = searchParams.get("lat");
-    const lngParam = searchParams.get("lng");
-    const lat = latParam ? Number(latParam) : NaN;
-    const lng = lngParam ? Number(lngParam) : NaN;
+  const radiusParam = params.get("r");
+  const radiusKm =
+    radiusParam === "5" || radiusParam === "10" || radiusParam === "20"
+      ? (Number(radiusParam) as 5 | 10 | 20)
+      : null;
 
-    const radiusMarcaFromUrl = searchParams.get("rb") || "";
+  const latParam = params.get("lat");
+  const lngParam = params.get("lng");
+  const lat = latParam ? Number(latParam) : NaN;
+  const lng = lngParam ? Number(lngParam) : NaN;
 
-    const next: FilterValues = sanitizeFilters({
-      fuelId: fuelFromUrl,
-      idDistrito: distritoFromUrl,
-      idMunicipio: municipiosFromUrl,
-      marcaIds: marcaIdsFromUrl,
-      search: searchFromUrl,
+  const radiusMarcaFromUrl = params.get("rb") || "";
+
+  const next: FilterValues = sanitizeFilters({
+    fuelId: fuelFromUrl,
+    idDistrito: distritoFromUrl,
+    idMunicipio: municipiosFromUrl,
+    marcaIds: marcaIdsFromUrl,
+    search: searchFromUrl,
+  });
+
+  filtersRef.current = next;
+  setFuelId(fuelFromUrl);
+  setDistritoAtivo(distritoFromUrl);
+  setMunicipioAtivo(getPrimaryMunicipioId(municipiosFromUrl));
+  setOrdenacao(sortFromUrl);
+  setRadiusMarcaId(radiusMarcaFromUrl);
+  setUrlReady(true);
+
+  if (radiusKm && Number.isFinite(lat) && Number.isFinite(lng)) {
+    void fetchPostosBySharedRadius({
+      fuelIdArg: fuelFromUrl,
+      lat,
+      lng,
+      radiusKm,
+      preserveMarcaId: true,
     });
+    return;
+  }
 
-    filtersRef.current = next;
-    setFuelId(fuelFromUrl);
-    setDistritoAtivo(distritoFromUrl);
-    setMunicipioAtivo(getPrimaryMunicipioId(municipiosFromUrl));
-    setOrdenacao(sortFromUrl);
-    setRadiusMarcaId(radiusMarcaFromUrl);
-    setUrlReady(true);
-
-    if (radiusKm && Number.isFinite(lat) && Number.isFinite(lng)) {
-      void fetchPostosBySharedRadius({
-        fuelIdArg: fuelFromUrl,
-        lat,
-        lng,
-        radiusKm,
-        preserveMarcaId: true,
-      });
-      return;
-    }
-
-    if (distritoFromUrl || municipiosFromUrl || marcaIdsFromUrl.length > 0 || searchFromUrl) {
-      setHasSearched(true);
-      void fetchPostos(next);
-    }
-  }, [urlReady, searchParams, fetchPostos, fetchPostosBySharedRadius]);
+  if (distritoFromUrl || municipiosFromUrl || marcaIdsFromUrl.length > 0 || searchFromUrl) {
+    setHasSearched(true);
+    void fetchPostos(next);
+  }
+}, [urlReady, fetchPostos, fetchPostosBySharedRadius]);
 
   useEffect(() => {
     if (!urlReady) return;
