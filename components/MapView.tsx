@@ -1,10 +1,12 @@
 "use client";
+
 import { useEffect, useRef } from "react";
 import type { Posto } from "@/lib/dgeg";
 import { getMarcaCor } from "@/lib/postos";
 
 interface Props {
   postos: Posto[];
+  userLocation?: { lat: number; lng: number } | null;
   onBoundsChange?: (bbox: string) => void;
   onDistritoClick?: (nome: string, id?: string) => void;
   onConcelhoClick?: (distritoId: string, concelhoNome: string) => void;
@@ -89,6 +91,7 @@ async function fetchGeoJSON(url: string) {
 
 export default function MapView({
   postos,
+  userLocation,
   onBoundsChange,
   onDistritoClick,
   onConcelhoClick,
@@ -99,6 +102,7 @@ export default function MapView({
 }: Props) {
   const mapRef = useRef<any>(null);
   const pinsLayerRef = useRef<any>(null);
+  const userMarkerRef = useRef<any>(null);
   const mapReadyRef = useRef(false);
   const distritosRef = useRef<any>(null);
   const municipiosRef = useRef<any>(null);
@@ -225,7 +229,10 @@ export default function MapView({
                 });
               }
             },
-          };
+            resetView: () => {
+              map.setView([39.6, -8.0], 7, { animate: true });
+            },
+          } as any;
         }
       });
 
@@ -276,7 +283,7 @@ export default function MapView({
         });
 
         if (flyRef) {
-          const prev = flyRef.current;
+          const prev = flyRef.current as any;
           flyRef.current = {
             flyToDistrito: prev?.flyToDistrito ?? (() => {}),
             flyToConcelho: (distritoId: string, concelhoNome: string) => {
@@ -290,28 +297,31 @@ export default function MapView({
                 });
               }
             },
-          };
+            resetView: prev?.resetView ?? (() => {
+              map.setView([39.6, -8.0], 7, { animate: true });
+            }),
+          } as any;
         }
 
-function syncLayers() {
-  const z = map.getZoom();
+        function syncLayers() {
+          const z = map.getZoom();
 
-  if (z >= 9) {
-    if (distritosRef.current && map.hasLayer(distritosRef.current)) {
-      map.removeLayer(distritosRef.current);
-    }
-    if (municipiosRef.current && !map.hasLayer(municipiosRef.current)) {
-      map.addLayer(municipiosRef.current);
-    }
-  } else {
-    if (municipiosRef.current && map.hasLayer(municipiosRef.current)) {
-      map.removeLayer(municipiosRef.current);
-    }
-    if (distritosRef.current && !map.hasLayer(distritosRef.current)) {
-      map.addLayer(distritosRef.current);
-    }
-  }
-}
+          if (z >= 9) {
+            if (distritosRef.current && map.hasLayer(distritosRef.current)) {
+              map.removeLayer(distritosRef.current);
+            }
+            if (municipiosRef.current && !map.hasLayer(municipiosRef.current)) {
+              map.addLayer(municipiosRef.current);
+            }
+          } else {
+            if (municipiosRef.current && map.hasLayer(municipiosRef.current)) {
+              map.removeLayer(municipiosRef.current);
+            }
+            if (distritosRef.current && !map.hasLayer(distritosRef.current)) {
+              map.addLayer(distritosRef.current);
+            }
+          }
+        }
 
         map.on("zoomend", syncLayers);
         syncLayers();
@@ -421,5 +431,66 @@ function syncLayers() {
     tryAdd();
   }, [postos, mostrarPins]);
 
-  return <div ref={containerRef} style={{ width: "100%", height: "100%", minHeight: "400px" }} />;
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const L = (await import("leaflet")).default;
+      if (cancelled || !mapRef.current) return;
+
+      if (userMarkerRef.current) {
+        mapRef.current.removeLayer(userMarkerRef.current);
+        userMarkerRef.current = null;
+      }
+
+      if (
+        !userLocation ||
+        userLocation.lat < PT_BOUNDS.minLat ||
+        userLocation.lat > PT_BOUNDS.maxLat ||
+        userLocation.lng < PT_BOUNDS.minLng ||
+        userLocation.lng > PT_BOUNDS.maxLng
+      ) {
+        return;
+      }
+
+      const userIcon = L.divIcon({
+        className: "",
+        html: `
+          <div style="
+            width:18px;
+            height:18px;
+            border-radius:50%;
+            background:#2b7fff;
+            border:3px solid #ffffff;
+            box-shadow:
+              0 0 0 4px rgba(43,127,255,0.22),
+              0 3px 10px rgba(0,0,0,0.28);
+          "></div>
+        `,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+      });
+
+      userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], {
+        icon: userIcon,
+        zIndexOffset: 2000,
+        keyboard: false,
+      }).bindPopup("A sua localização");
+
+      userMarkerRef.current.addTo(mapRef.current);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userLocation]);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ width: "100%", height: "100%", minHeight: "400px" }}
+    />
+  );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ALLOWED_MARCAS, type Posto } from "@/lib/dgeg";
 import type { FilterValues } from "@/components/FilterPanel";
 import {
@@ -21,7 +22,41 @@ import {
   type MapFlyRefType,
 } from "@/hooks/homePage.utils";
 
+function dedupePostos(list: Posto[]): Posto[] {
+  const seen = new Set<string>();
+
+  return list.filter((p) => {
+    const key = String(p.id);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+type UrlSnapshot = {
+  fuelId: string;
+  idDistrito: string;
+  idMunicipio: string;
+  marcaIds: string[];
+  search: string;
+  ordenacao: CombustivelOrdenacao;
+  radiusKm: 5 | 10 | 20 | null;
+  lat: number | null;
+  lng: number | null;
+  radiusMarcaId: string;
+};
+
+const VALID_SORTS: CombustivelOrdenacao[] = [
+  "gasolina_asc",
+  "gasoleo_asc",
+  "gpl_asc",
+];
+
 export function useHomePageLogic() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [postos, setPostos] = useState<Posto[]>([]);
   const [loading, setLoading] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
@@ -44,6 +79,7 @@ export function useHomePageLogic() {
   const [hasSearched, setHasSearched] = useState(false);
   const [isMobileView, setIsMobileView] = useState(false);
   const [calcAnchor, setCalcAnchor] = useState({ top: 0, left: 0 });
+  const [urlReady, setUrlReady] = useState(false);
 
   const calcBtnRef = useRef<HTMLButtonElement | null>(null);
   const calcPopoverRef = useRef<HTMLDivElement | null>(null);
@@ -60,7 +96,7 @@ export function useHomePageLogic() {
     fuelId: "3201",
     idDistrito: "",
     idMunicipio: "",
-    marcaId: "",
+    marcaIds: [],
     search: "",
   });
 
@@ -112,6 +148,74 @@ export function useHomePageLogic() {
     };
   }, [calcOpen, isMobileView, updateCalcPosition]);
 
+  const buildUrlSnapshot = useCallback(
+    (overrides: Partial<UrlSnapshot> = {}): UrlSnapshot => ({
+      fuelId,
+      idDistrito: filtersRef.current.idDistrito,
+      idMunicipio: filtersRef.current.idMunicipio,
+      marcaIds: filtersRef.current.marcaIds,
+      search: filtersRef.current.search,
+      ordenacao,
+      radiusKm: activeRadiusKm,
+      lat: userLocation?.lat ?? null,
+      lng: userLocation?.lng ?? null,
+      radiusMarcaId,
+      ...overrides,
+    }),
+    [fuelId, ordenacao, activeRadiusKm, userLocation, radiusMarcaId]
+  );
+
+  const syncUrl = useCallback(
+    (snap: UrlSnapshot) => {
+      const params = new URLSearchParams();
+
+      if (snap.fuelId && snap.fuelId !== "3201") {
+        params.set("fuel", snap.fuelId);
+      }
+
+      if (snap.idDistrito) {
+        params.set("d", snap.idDistrito);
+      }
+
+      if (snap.idMunicipio) {
+        params.set("m", snap.idMunicipio);
+      }
+
+      if (snap.marcaIds.length > 0) {
+        params.set("brands", snap.marcaIds.join(","));
+      }
+
+      if (snap.search) {
+        params.set("q", snap.search);
+      }
+
+      if (snap.ordenacao !== "gasolina_asc") {
+        params.set("sort", snap.ordenacao);
+      }
+
+      if (snap.radiusKm !== null && snap.lat !== null && snap.lng !== null) {
+        params.set("r", String(snap.radiusKm));
+        params.set("lat", String(snap.lat));
+        params.set("lng", String(snap.lng));
+
+        if (snap.radiusMarcaId) {
+          params.set("rb", snap.radiusMarcaId);
+        }
+      }
+
+      const nextQs = params.toString();
+      const nextUrl = nextQs ? `${pathname}?${nextQs}` : pathname;
+
+      const currentQs = searchParams.toString();
+      const currentUrl = currentQs ? `${pathname}?${currentQs}` : pathname;
+
+      if (nextUrl !== currentUrl) {
+        router.replace(nextUrl, { scroll: false });
+      }
+    },
+    [pathname, router, searchParams]
+  );
+
   const clearRadiusSearchState = useCallback(() => {
     setActiveRadiusKm(null);
     setUserLocation(null);
@@ -142,7 +246,7 @@ export function useHomePageLogic() {
 
     const temDistrito = !!safeF.idDistrito;
     const temMunicipio = !!safeF.idMunicipio;
-    const temMarca = !!safeF.marcaId;
+    const temMarca = safeF.marcaIds.length > 0;
     const temSearch = !!safeF.search;
 
     const podeSearch = temMarca || (temDistrito && temMunicipio) || temSearch;
@@ -159,9 +263,9 @@ export function useHomePageLogic() {
     try {
       const params = new URLSearchParams();
       params.set("fuelId", safeF.fuelId);
+
       if (safeF.idDistrito) params.set("idDistrito", safeF.idDistrito);
       if (safeF.idMunicipio) params.set("idMunicipios", safeF.idMunicipio);
-      if (safeF.marcaId) params.set("marcaId", safeF.marcaId);
       if (safeF.search) params.set("search", safeF.search);
 
       const res = await fetch(`/api/combustivel?${params.toString()}`);
@@ -182,10 +286,22 @@ export function useHomePageLogic() {
         return;
       }
 
-      const filtered = (json.data as Posto[]).filter((p) => {
+      let filtered = (json.data as Posto[]).filter((p) => {
         if (p.preco !== null && p.preco <= 0) return false;
         return true;
       });
+
+      if (safeF.marcaIds.length > 0) {
+        const marcasSelecionadas = new Set(
+          ALLOWED_MARCAS
+            .filter((m) => safeF.marcaIds.includes(String(m.id)))
+            .map((m) => normText(m.nome))
+        );
+
+        filtered = filtered.filter((p) => marcasSelecionadas.has(normText(p.marca)));
+      }
+
+      filtered = dedupePostos(filtered);
 
       if (filtered.length === 0) {
         setError("Não existem postos para os filtros selecionados.");
@@ -209,36 +325,48 @@ export function useHomePageLogic() {
     }
   }, []);
 
-  const handleSearchByRadius = useCallback(
-    async (radiusKm: 5 | 10 | 20) => {
+  const fetchPostosBySharedRadius = useCallback(
+    async ({
+      fuelIdArg,
+      lat,
+      lng,
+      radiusKm,
+      preserveMarcaId = false,
+    }: {
+      fuelIdArg: string;
+      lat: number;
+      lng: number;
+      radiusKm: 5 | 10 | 20;
+      preserveMarcaId?: boolean;
+    }) => {
       setGeoLoading(true);
       setLoading(true);
       setGeoError("");
       setError("");
-      setRadiusMarcaId("");
       setRadiusBasePostos([]);
+      if (!preserveMarcaId) {
+        setRadiusMarcaId("");
+      }
+
+      filtersRef.current = {
+        fuelId: fuelIdArg,
+        idDistrito: "",
+        idMunicipio: "",
+        marcaIds: [],
+        search: "",
+      };
+
+      setFuelId(fuelIdArg);
+      setUserLocation({ lat, lng });
+      setActiveRadiusKm(radiusKm);
+      setDistritoAtivo("");
+      setMunicipioAtivo("");
+      setHasSearched(true);
 
       try {
-        const loc = await getUserLocation();
-
-        setUserLocation(loc);
-        setActiveRadiusKm(radiusKm);
-
-        filtersRef.current = {
-          fuelId,
-          idDistrito: "",
-          idMunicipio: "",
-          marcaId: "",
-          search: "",
-        };
-
-        setDistritoAtivo("");
-        setMunicipioAtivo("");
-        setHasSearched(true);
-
         const params = new URLSearchParams();
-        params.set("fuelId", fuelId);
-        params.set("bbox", makeBBoxFromRadius(loc.lat, loc.lng, radiusKm));
+        params.set("fuelId", fuelIdArg);
+        params.set("bbox", makeBBoxFromRadius(lat, lng, radiusKm));
 
         const res = await fetch(`/api/combustivel?${params.toString()}`);
         const json = await res.json();
@@ -251,16 +379,17 @@ export function useHomePageLogic() {
           throw new Error(msg);
         }
 
-        const filtered = (json.data as Posto[]).filter((p) => {
+        let filtered = (json.data as Posto[]).filter((p) => {
           if (p.preco !== null && p.preco <= 0) return false;
           if (!isValidPortugalLikeCoord(p.lat, p.lng)) return false;
 
-          return haversineKm(loc.lat, loc.lng, p.lat as number, p.lng as number) <= radiusKm;
+          return haversineKm(lat, lng, p.lat as number, p.lng as number) <= radiusKm;
         });
+
+        filtered = dedupePostos(filtered);
 
         if (filtered.length === 0) {
           setRadiusBasePostos([]);
-          setRadiusMarcaId("");
           setPostos([]);
           setError(`Não existem postos num raio de ${radiusKm} km.`);
           return;
@@ -272,9 +401,129 @@ export function useHomePageLogic() {
         }, 1500);
 
         setRadiusBasePostos(filtered);
-        setRadiusMarcaId("");
         setPostos(filtered);
         setError("");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Erro ao obter localização.";
+        setGeoError(msg);
+        setError(msg);
+        setPostos([]);
+        setRadiusBasePostos([]);
+        if (!preserveMarcaId) {
+          setRadiusMarcaId("");
+        }
+        setHasSearched(false);
+        setUserLocation(null);
+        setActiveRadiusKm(null);
+      } finally {
+        setGeoLoading(false);
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (urlReady) return;
+
+    const fuelFromUrl = searchParams.get("fuel") || "3201";
+    const distritoFromUrl = searchParams.get("d") || "";
+    const municipiosFromUrl = searchParams.get("m") || "";
+    const marcaIdsFromUrl = (searchParams.get("brands") || "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+
+    const searchFromUrl = searchParams.get("q") || "";
+    const sortCandidate = searchParams.get("sort");
+    const sortFromUrl: CombustivelOrdenacao =
+      sortCandidate && VALID_SORTS.includes(sortCandidate as CombustivelOrdenacao)
+        ? (sortCandidate as CombustivelOrdenacao)
+        : "gasolina_asc";
+
+    const radiusParam = searchParams.get("r");
+    const radiusKm =
+      radiusParam === "5" || radiusParam === "10" || radiusParam === "20"
+        ? (Number(radiusParam) as 5 | 10 | 20)
+        : null;
+
+    const latParam = searchParams.get("lat");
+    const lngParam = searchParams.get("lng");
+    const lat = latParam ? Number(latParam) : NaN;
+    const lng = lngParam ? Number(lngParam) : NaN;
+
+    const radiusMarcaFromUrl = searchParams.get("rb") || "";
+
+    const next: FilterValues = sanitizeFilters({
+      fuelId: fuelFromUrl,
+      idDistrito: distritoFromUrl,
+      idMunicipio: municipiosFromUrl,
+      marcaIds: marcaIdsFromUrl,
+      search: searchFromUrl,
+    });
+
+    filtersRef.current = next;
+    setFuelId(fuelFromUrl);
+    setDistritoAtivo(distritoFromUrl);
+    setMunicipioAtivo(getPrimaryMunicipioId(municipiosFromUrl));
+    setOrdenacao(sortFromUrl);
+    setRadiusMarcaId(radiusMarcaFromUrl);
+    setUrlReady(true);
+
+    if (radiusKm && Number.isFinite(lat) && Number.isFinite(lng)) {
+      void fetchPostosBySharedRadius({
+        fuelIdArg: fuelFromUrl,
+        lat,
+        lng,
+        radiusKm,
+        preserveMarcaId: true,
+      });
+      return;
+    }
+
+    if (distritoFromUrl || municipiosFromUrl || marcaIdsFromUrl.length > 0 || searchFromUrl) {
+      setHasSearched(true);
+      void fetchPostos(next);
+    }
+  }, [urlReady, searchParams, fetchPostos, fetchPostosBySharedRadius]);
+
+  useEffect(() => {
+    if (!urlReady) return;
+    syncUrl(buildUrlSnapshot({ ordenacao }));
+  }, [ordenacao, urlReady, buildUrlSnapshot, syncUrl]);
+
+  const handleSearchByRadius = useCallback(
+    async (radiusKm: 5 | 10 | 20) => {
+      setGeoLoading(true);
+      setLoading(true);
+      setGeoError("");
+      setError("");
+      setRadiusMarcaId("");
+      setRadiusBasePostos([]);
+
+      try {
+        const loc = await getUserLocation();
+
+        syncUrl(
+          buildUrlSnapshot({
+            fuelId,
+            idDistrito: "",
+            idMunicipio: "",
+            marcaIds: [],
+            search: "",
+            radiusKm,
+            lat: loc.lat,
+            lng: loc.lng,
+            radiusMarcaId: "",
+          })
+        );
+
+        await fetchPostosBySharedRadius({
+          fuelIdArg: fuelId,
+          lat: loc.lat,
+          lng: loc.lng,
+          radiusKm,
+        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Erro ao obter localização.";
         setGeoError(msg);
@@ -285,12 +534,21 @@ export function useHomePageLogic() {
         setHasSearched(false);
         setUserLocation(null);
         setActiveRadiusKm(null);
-      } finally {
+
+        syncUrl(
+          buildUrlSnapshot({
+            radiusKm: null,
+            lat: null,
+            lng: null,
+            radiusMarcaId: "",
+          })
+        );
+
         setGeoLoading(false);
         setLoading(false);
       }
     },
-    [fuelId]
+    [fuelId, fetchPostosBySharedRadius, syncUrl, buildUrlSnapshot]
   );
 
   const handleReset = useCallback(() => {
@@ -300,7 +558,7 @@ export function useHomePageLogic() {
       fuelId: "3201",
       idDistrito: "",
       idMunicipio: "",
-      marcaId: "",
+      marcaIds: [],
       search: "",
     };
 
@@ -312,7 +570,20 @@ export function useHomePageLogic() {
     setOrdenacao("gasolina_asc");
     setHasSearched(false);
     resetMapsToPortugal();
-  }, [clearRadiusSearchState, resetMapsToPortugal]);
+
+    syncUrl({
+      fuelId: "3201",
+      idDistrito: "",
+      idMunicipio: "",
+      marcaIds: [],
+      search: "",
+      ordenacao: "gasolina_asc",
+      radiusKm: null,
+      lat: null,
+      lng: null,
+      radiusMarcaId: "",
+    });
+  }, [clearRadiusSearchState, resetMapsToPortugal, syncUrl]);
 
   const handleDistritoClick = useCallback(
     (_nome: string, id?: string) => {
@@ -331,7 +602,21 @@ export function useHomePageLogic() {
       setDistritoAtivo(id ?? "");
       setMunicipioAtivo("");
 
-      if (newF.marcaId) {
+      syncUrl(
+        buildUrlSnapshot({
+          fuelId,
+          idDistrito: id ?? "",
+          idMunicipio: "",
+          marcaIds: newF.marcaIds,
+          search: newF.search,
+          radiusKm: null,
+          lat: null,
+          lng: null,
+          radiusMarcaId: "",
+        })
+      );
+
+      if (newF.marcaIds.length > 0) {
         setHasSearched(true);
         fetchPostos(newF);
       } else {
@@ -339,7 +624,7 @@ export function useHomePageLogic() {
         setPostos([]);
       }
     },
-    [clearRadiusSearchState, fetchPostos, fuelId]
+    [clearRadiusSearchState, fetchPostos, fuelId, syncUrl, buildUrlSnapshot]
   );
 
   const handleConcelhoClick = useCallback(
@@ -378,9 +663,24 @@ export function useHomePageLogic() {
       setDistritoAtivo(distritoId);
       setMunicipioAtivo(concelhoId);
       setHasSearched(true);
+
+      syncUrl(
+        buildUrlSnapshot({
+          fuelId,
+          idDistrito: distritoId,
+          idMunicipio: concelhoId,
+          marcaIds: novoFiltro.marcaIds,
+          search: novoFiltro.search,
+          radiusKm: null,
+          lat: null,
+          lng: null,
+          radiusMarcaId: "",
+        })
+      );
+
       fetchPostos(novoFiltro);
     },
-    [clearRadiusSearchState, fetchPostos, fuelId]
+    [clearRadiusSearchState, fetchPostos, fuelId, syncUrl, buildUrlSnapshot]
   );
 
   const handleFilterChange = useCallback(
@@ -397,7 +697,21 @@ export function useHomePageLogic() {
       setDistritoAtivo(next.idDistrito);
       setMunicipioAtivo(primaryMunicipio);
 
-      if (!next.idDistrito && !next.idMunicipio && !next.marcaId && !next.search) {
+      syncUrl(
+        buildUrlSnapshot({
+          fuelId: next.fuelId,
+          idDistrito: next.idDistrito,
+          idMunicipio: next.idMunicipio,
+          marcaIds: next.marcaIds,
+          search: next.search,
+          radiusKm: null,
+          lat: null,
+          lng: null,
+          radiusMarcaId: "",
+        })
+      );
+
+      if (!next.idDistrito && !next.idMunicipio && next.marcaIds.length === 0 && !next.search) {
         setHasSearched(false);
         setPostos([]);
         setError("");
@@ -424,7 +738,7 @@ export function useHomePageLogic() {
         flyToDistrito(next.idDistrito);
       }
     },
-    [clearRadiusSearchState, flyToConcelho, flyToDistrito, resetMapsToPortugal]
+    [clearRadiusSearchState, flyToConcelho, flyToDistrito, resetMapsToPortugal, syncUrl, buildUrlSnapshot]
   );
 
   const handleSearch = useCallback(
@@ -440,6 +754,20 @@ export function useHomePageLogic() {
       setMunicipioAtivo(primaryMunicipio);
       setHasSearched(true);
 
+      syncUrl(
+        buildUrlSnapshot({
+          fuelId: next.fuelId,
+          idDistrito: next.idDistrito,
+          idMunicipio: next.idMunicipio,
+          marcaIds: next.marcaIds,
+          search: next.search,
+          radiusKm: null,
+          lat: null,
+          lng: null,
+          radiusMarcaId: "",
+        })
+      );
+
       ignoreMapClicksRef.current = true;
       setTimeout(() => {
         ignoreMapClicksRef.current = false;
@@ -447,7 +775,7 @@ export function useHomePageLogic() {
 
       fetchPostos(next);
     },
-    [clearRadiusSearchState, fetchPostos]
+    [clearRadiusSearchState, fetchPostos, syncUrl, buildUrlSnapshot]
   );
 
   const handleCopy = useCallback((addr: string) => {
@@ -456,11 +784,20 @@ export function useHomePageLogic() {
     setTimeout(() => setCopiedAddr(null), 2000);
   }, []);
 
-  const handleRadiusMarcaChange = useCallback((marcaId: string) => {
-    setRadiusMarcaId(marcaId);
-  }, []);
+  const handleRadiusMarcaChange = useCallback(
+    (marcaId: string) => {
+      setRadiusMarcaId(marcaId);
 
-  const hasMarca = filtersRef.current.marcaId !== "";
+      syncUrl(
+        buildUrlSnapshot({
+          radiusMarcaId: marcaId,
+        })
+      );
+    },
+    [syncUrl, buildUrlSnapshot]
+  );
+
+  const hasMarca = filtersRef.current.marcaIds.length > 0;
   const hasSearch = filtersRef.current.search !== "";
   const hasMunicipioSelecionado = filtersRef.current.idMunicipio !== "";
   const hasRadiusSearch = activeRadiusKm !== null && userLocation !== null;
@@ -487,9 +824,7 @@ export function useHomePageLogic() {
 
     if (!selectedRadiusMarca) return base;
 
-    return base.filter(
-      (p) => normText(p.marca) === normText(selectedRadiusMarca.nome)
-    );
+    return base.filter((p) => normText(p.marca) === normText(selectedRadiusMarca.nome));
   }, [hasRadiusSearch, radiusBasePostos, postos, selectedRadiusMarca]);
 
   const tipoAtivo = getTipoAtivo(ordenacao);
@@ -521,14 +856,18 @@ export function useHomePageLogic() {
     return minP;
   })();
 
-  const sortedPostos = [...postosVisiveis].sort((a, b) => {
-    if (!tipoAtivo) return 0;
+  const sortedPostos = useMemo(() => {
+    const unique = dedupePostos(postosVisiveis);
 
-    const pa = getPrecoCombustivel(a, tipoAtivo);
-    const pb = getPrecoCombustivel(b, tipoAtivo);
+    return [...unique].sort((a, b) => {
+      if (!tipoAtivo) return 0;
 
-    return (pa ?? Infinity) - (pb ?? Infinity);
-  });
+      const pa = getPrecoCombustivel(a, tipoAtivo);
+      const pb = getPrecoCombustivel(b, tipoAtivo);
+
+      return (pa ?? Infinity) - (pb ?? Infinity);
+    });
+  }, [postosVisiveis, tipoAtivo]);
 
   const hasQueryContext =
     distritoAtivo !== "" ||
@@ -538,7 +877,7 @@ export function useHomePageLogic() {
     hasRadiusSearch;
 
   const mostrarPins =
-    postosVisiveis.length > 0 &&
+    sortedPostos.length > 0 &&
     (hasMunicipioSelecionado || hasMarca || hasRadiusSearch);
 
   const mostrarPinsDistrito =
@@ -595,6 +934,7 @@ export function useHomePageLogic() {
 
   const mapProps = {
     postos: sortedPostos,
+    userLocation,
     onDistritoClick: handleDistritoClick,
     onConcelhoClick: handleConcelhoClick,
     mostrarPins,

@@ -43,8 +43,8 @@ export default function Calculadora({ defaultPrice = 1.76 }: { defaultPrice?: nu
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
-        <span style={{ fontSize: "1rem" }}>⛽</span>
-        <span style={{ fontWeight: 700, fontSize: "0.88rem" }}>Calculadora</span>
+        <span style={{ fontSize: "1rem" }}></span>
+        <span style={{ fontWeight: 700, fontSize: "0.88rem" }}></span>
       </div>
 
       <div

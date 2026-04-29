@@ -1,16 +1,24 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useTheme } from "@/components/ThemeProvider";
 import { ALLOWED_MARCAS } from "@/lib/dgeg";
 
-interface Distrito { Id: number; Descritivo: string; }
-interface Municipio { Id: number; Descritivo: string; }
+interface Distrito {
+  Id: number;
+  Descritivo: string;
+}
+
+interface Municipio {
+  Id: number;
+  Descritivo: string;
+}
 
 export interface FilterValues {
   fuelId: string;
   idDistrito: string;
-  idMunicipio: string; // CSV: "123,456,789"
-  marcaId: string;
+  idMunicipio: string;
+  marcaIds: string[];
   search: string;
 }
 
@@ -21,7 +29,7 @@ interface Props {
   total: number;
   currentFuelId: string;
   distritoAtivo: string;
-  municipioAtivo: string; // continua singular para compatibilidade com o mapa
+  municipioAtivo: string;
   cheapestPrice?: number | null;
 }
 
@@ -33,7 +41,6 @@ export default function FilterPanel({
   currentFuelId,
   distritoAtivo,
   municipioAtivo,
-  cheapestPrice,
 }: Props) {
   const { dark } = useTheme();
 
@@ -41,45 +48,38 @@ export default function FilterPanel({
   const [municipios, setMunicipios] = useState<Municipio[]>([]);
   const [idDistrito, setIdDistrito] = useState("");
   const [idMunicipios, setIdMunicipios] = useState<string[]>([]);
-  const [marcaId, setMarcaId] = useState("");
-
-  const [litros, setLitros] = useState(50);
-  const [precoCalc, setPrecoCalc] = useState("");
-  const precoNum = parseFloat(precoCalc) || cheapestPrice || 0;
-  const totalCalc = precoNum > 0 ? (precoNum * litros).toFixed(2) : null;
+  const [marcaIds, setMarcaIds] = useState<string[]>([]);
+  const [municipiosOpen, setMunicipiosOpen] = useState(false);
+  const [marcasOpen, setMarcasOpen] = useState(false);
 
   const monoColor = dark ? "#ffffff" : "#000000";
 
+  const municipiosBoxRef = useRef<HTMLDivElement | null>(null);
+  const marcasBoxRef = useRef<HTMLDivElement | null>(null);
+
   const toCsv = useCallback((arr: string[]) => arr.join(","), []);
-  const fromCsv = useCallback((csv: string) => {
-    if (!csv) return [];
-    return csv.split(",").map((v) => v.trim()).filter(Boolean);
+
+  const closeDropdowns = useCallback(() => {
+    setMunicipiosOpen(false);
+    setMarcasOpen(false);
   }, []);
 
-  useEffect(() => {
-    if (!precoCalc && cheapestPrice) {
-      setPrecoCalc(cheapestPrice.toFixed(3));
-    }
-  }, [cheapestPrice, precoCalc]);
-
-  // Distrito vindo do mapa
   useEffect(() => {
     if (distritoAtivo === idDistrito) return;
     setIdDistrito(distritoAtivo);
     setIdMunicipios([]);
-  }, [distritoAtivo, idDistrito]);
+    closeDropdowns();
+  }, [distritoAtivo, idDistrito, closeDropdowns]);
 
-  // Concelho vindo do mapa (singular) -> substitui seleção atual por 1
-useEffect(() => {
-  if (!municipioAtivo) return;
+  useEffect(() => {
+    if (!municipioAtivo) return;
 
-  setIdMunicipios((prev) => {
-    if (prev.length === 1 && prev[0] === municipioAtivo) return prev;
-    return [municipioAtivo];
-  });
-}, [municipioAtivo]);
+    setIdMunicipios((prev) => {
+      if (prev.length === 1 && prev[0] === municipioAtivo) return prev;
+      return [municipioAtivo];
+    });
+  }, [municipioAtivo]);
 
-  // Quando os municípios carregam e há concelho ativo pendente
   useEffect(() => {
     if (!municipioAtivo || municipios.length === 0) return;
     const existe = municipios.some((m) => String(m.Id) === municipioAtivo);
@@ -91,11 +91,11 @@ useEffect(() => {
       fuelId: currentFuelId,
       idDistrito,
       idMunicipio: toCsv(idMunicipios),
-      marcaId,
+      marcaIds,
       search: "",
       ...ov,
     }),
-    [currentFuelId, idDistrito, idMunicipios, marcaId, toCsv]
+    [currentFuelId, idDistrito, idMunicipios, marcaIds, toCsv]
   );
 
   useEffect(() => {
@@ -107,17 +107,57 @@ useEffect(() => {
   useEffect(() => {
     if (!idDistrito) {
       setMunicipios([]);
+      setIdMunicipios([]);
+      closeDropdowns();
       return;
     }
 
     fetch(`/api/municipios?id=${idDistrito}`)
       .then((r) => r.json())
       .then((d) => setMunicipios(d.data ?? []));
-  }, [idDistrito]);
+  }, [idDistrito, closeDropdowns]);
+
+  useEffect(() => {
+    function handlePointerDown(e: MouseEvent | TouchEvent) {
+      const target = e.target as Node;
+
+      const insideMunicipios =
+        municipiosBoxRef.current?.contains(target) ?? false;
+      const insideMarcas =
+        marcasBoxRef.current?.contains(target) ?? false;
+
+      if (!insideMunicipios) {
+        setMunicipiosOpen(false);
+      }
+
+      if (!insideMarcas) {
+        setMarcasOpen(false);
+      }
+    }
+
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        closeDropdowns();
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown, {
+      passive: true,
+    });
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [closeDropdowns]);
 
   function handleDistritoChange(v: string) {
     setIdDistrito(v);
     setIdMunicipios([]);
+    closeDropdowns();
     onChange(vals({ idDistrito: v, idMunicipio: "" }));
   }
 
@@ -130,27 +170,48 @@ useEffect(() => {
     onChange(vals({ idMunicipio: toCsv(next) }));
   }
 
-  function handleMarcaChange(v: string) {
-    setMarcaId(v);
-    onChange(vals({ marcaId: v }));
+  function handleMarcaToggle(v: string) {
+    const next = marcaIds.includes(v)
+      ? marcaIds.filter((x) => x !== v)
+      : [...marcaIds, v];
+
+    setMarcaIds(next);
+    onChange(vals({ marcaIds: next }));
   }
 
   function handleReset() {
     setIdDistrito("");
     setIdMunicipios([]);
-    setMarcaId("");
-    setPrecoCalc("");
+    setMarcaIds([]);
+    closeDropdowns();
 
     onChange({
       fuelId: currentFuelId,
       idDistrito: "",
       idMunicipio: "",
-      marcaId: "",
+      marcaIds: [],
       search: "",
     });
   }
 
-  const municipiosSelecionados = idMunicipios.length;
+  const municipiosSelecionadosNomes = municipios
+    .filter((m) => idMunicipios.includes(String(m.Id)))
+    .map((m) => m.Descritivo);
+
+  const marcasSelecionadasNomes = ALLOWED_MARCAS
+    .filter((m) => marcaIds.includes(String(m.id)))
+    .map((m) => m.nome);
+
+  const municipiosLabel = !idDistrito
+    ? "Escolha primeiro um distrito"
+    : municipiosSelecionadosNomes.length === 0
+      ? "Todos"
+      : municipiosSelecionadosNomes.join(", ");
+
+  const marcasLabel =
+    marcasSelecionadasNomes.length === 0
+      ? "Todas"
+      : marcasSelecionadasNomes.join(", ");
 
   return (
     <aside
@@ -160,8 +221,7 @@ useEffect(() => {
         gap: "0.5rem",
         position: "sticky",
         top: 72,
-        maxHeight: "calc(100vh - 80px)",
-        overflowY: "auto",
+        overflow: "visible",
         paddingBottom: "0.5rem",
       }}
     >
@@ -172,6 +232,7 @@ useEffect(() => {
           display: "flex",
           flexDirection: "column",
           gap: "0.6rem",
+          overflow: "visible",
         }}
       >
         <p style={{ fontWeight: 700, fontSize: "0.8rem" }}>Filtros</p>
@@ -192,92 +253,250 @@ useEffect(() => {
           </select>
         </div>
 
-        <div>
-          <label className="field-label">
-            Concelhos
-            {municipiosSelecionados > 0 ? ` (${municipiosSelecionados} selecionado${municipiosSelecionados > 1 ? "s" : ""})` : ""}
-          </label>
+        <div
+          ref={municipiosBoxRef}
+          style={{ position: "relative", overflow: "visible" }}
+        >
+          <label className="field-label">Concelhos</label>
 
-          <div
-            className="field-input"
-            style={{
-              padding: municipios.length ? "0.35rem" : "0.65rem 0.75rem",
-              opacity: municipios.length ? 1 : 0.45,
-              minHeight: "44px",
-              maxHeight: "190px",
-              overflowY: "auto",
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.2rem",
-            }}
-          >
-            {!municipios.length ? (
-              <span className="text-muted" style={{ fontSize: "0.72rem" }}>
-                Escolha primeiro um distrito
-              </span>
-            ) : (
-              <>
-
-                {municipios.map((m) => {
-                  const checked = idMunicipios.includes(String(m.Id));
-
-                  return (
-                    <label
-                      key={m.Id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.55rem",
-                        cursor: "pointer",
-                        padding: "0.3rem 0.2rem",
-                        borderRadius: "0.45rem",
-                        background: checked ? "var(--bg-input)" : "transparent",
-                        userSelect: "none",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => handleMunicipioToggle(String(m.Id))}
-                        style={{
-                          width: 16,
-                          height: 16,
-                          accentColor: "#000000",
-                          cursor: "pointer",
-                          flexShrink: 0,
-                        }}
-                      />
-                      <span style={{ fontSize: "0.76rem", lineHeight: 1.2 }}>
-                        {m.Descritivo}
-                      </span>
-                    </label>
-                  );
-                })}
-              </>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <label className="field-label">Marca</label>
-          <select
-            value={marcaId}
-            onChange={(e) => handleMarcaChange(e.target.value)}
-            className="field-input"
-          >
-            <option value="">Todas</option>
-            {ALLOWED_MARCAS.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.nome}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
           <button
             type="button"
-            onClick={() => onSearch(vals())}
+            onClick={() => {
+              if (!idDistrito) return;
+              setMunicipiosOpen((v) => !v);
+              setMarcasOpen(false);
+            }}
+            disabled={!idDistrito}
+            className="field-input"
+            aria-expanded={municipiosOpen}
+            aria-haspopup="listbox"
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              textAlign: "left",
+              cursor: idDistrito ? "pointer" : "not-allowed",
+              minHeight: "44px",
+              padding: "0.65rem 0.75rem",
+              opacity: idDistrito ? 1 : 0.45,
+              gap: "0.5rem",
+            }}
+          >
+            <span
+              title={municipiosLabel}
+              style={{
+                fontSize: "0.76rem",
+                flex: 1,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                paddingRight: "0.5rem",
+              }}
+            >
+              {municipiosLabel}
+            </span>
+
+            <span
+              style={{
+                fontSize: "0.8rem",
+                transform: municipiosOpen ? "rotate(180deg)" : "rotate(0deg)",
+                transition: "transform 160ms ease",
+                lineHeight: 1,
+                flexShrink: 0,
+              }}
+            >
+              ▾
+            </span>
+          </button>
+
+          {municipiosOpen && !!idDistrito && (
+            <div
+              className="field-input"
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: "calc(100% + 0.35rem)",
+                zIndex: 50,
+                padding: "0.35rem",
+                maxHeight: "220px",
+                overflowY: "auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.2rem",
+                boxShadow: dark
+                  ? "0 12px 28px rgba(0,0,0,0.42)"
+                  : "0 12px 28px rgba(0,0,0,0.12)",
+                background: "var(--card-bg, var(--bg))",
+              }}
+            >
+              {municipios.map((m) => {
+                const checked = idMunicipios.includes(String(m.Id));
+
+                return (
+                  <label
+                    key={m.Id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.55rem",
+                      cursor: "pointer",
+                      padding: "0.3rem 0.2rem",
+                      borderRadius: "0.45rem",
+                      background: checked ? "var(--bg-input)" : "transparent",
+                      userSelect: "none",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => handleMunicipioToggle(String(m.Id))}
+                      style={{
+                        width: 16,
+                        height: 16,
+                        accentColor: "#000000",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span style={{ fontSize: "0.76rem", lineHeight: 1.2 }}>
+                      {m.Descritivo}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div
+          ref={marcasBoxRef}
+          style={{ position: "relative", overflow: "visible" }}
+        >
+          <label className="field-label">Marcas</label>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMarcasOpen((v) => !v);
+              setMunicipiosOpen(false);
+            }}
+            className="field-input"
+            aria-expanded={marcasOpen}
+            aria-haspopup="listbox"
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              textAlign: "left",
+              cursor: "pointer",
+              minHeight: "44px",
+              padding: "0.65rem 0.75rem",
+              gap: "0.5rem",
+            }}
+          >
+            <span
+              title={marcasLabel}
+              style={{
+                fontSize: "0.76rem",
+                flex: 1,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                paddingRight: "0.5rem",
+              }}
+            >
+              {marcasLabel}
+            </span>
+
+            <span
+              style={{
+                fontSize: "0.8rem",
+                transform: marcasOpen ? "rotate(180deg)" : "rotate(0deg)",
+                transition: "transform 160ms ease",
+                lineHeight: 1,
+                flexShrink: 0,
+              }}
+            >
+              ▾
+            </span>
+          </button>
+
+          {marcasOpen && (
+            <div
+              className="field-input"
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: "calc(100% + 0.35rem)",
+                zIndex: 40,
+                padding: "0.35rem",
+                maxHeight: "220px",
+                overflowY: "auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.2rem",
+                boxShadow: dark
+                  ? "0 12px 28px rgba(0,0,0,0.42)"
+                  : "0 12px 28px rgba(0,0,0,0.12)",
+                background: "var(--card-bg, var(--bg))",
+              }}
+            >
+              {ALLOWED_MARCAS.map((m) => {
+                const checked = marcaIds.includes(String(m.id));
+
+                return (
+                  <label
+                    key={m.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.55rem",
+                      cursor: "pointer",
+                      padding: "0.3rem 0.2rem",
+                      borderRadius: "0.45rem",
+                      background: checked ? "var(--bg-input)" : "transparent",
+                      userSelect: "none",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => handleMarcaToggle(String(m.id))}
+                      style={{
+                        width: 16,
+                        height: 16,
+                        accentColor: "#000000",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span style={{ fontSize: "0.76rem", lineHeight: 1.2 }}>
+                      {m.nome}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "0.5rem",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              closeDropdowns();
+              onSearch(vals());
+            }}
             disabled={loading}
             className="btn-primary"
             style={{
@@ -295,11 +514,13 @@ useEffect(() => {
           </button>
         </div>
 
-        <p className="text-muted" style={{ fontSize: "0.68rem", marginTop: "-0.1rem" }}>
+        <p
+          className="text-muted"
+          style={{ fontSize: "0.68rem", marginTop: "-0.1rem" }}
+        >
           {total} resultado{total === 1 ? "" : "s"}
         </p>
       </div>
-
     </aside>
   );
 }
