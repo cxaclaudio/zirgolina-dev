@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import type { Posto } from "@/lib/dgeg";
 import PostoCard from "@/components/PostoCard";
+import PostoCardCompact from "@/components/PostoCardCompact";
 import type { SortOrdenacao } from "@/hooks/homePage.utils";
 
 type TipoAtivo = "gasolina" | "gasoleo" | "gpl" | null;
@@ -35,6 +37,14 @@ const FILTER_BTNS = [
   { label: "GPL", value: "gpl_asc" },
 ] as const;
 
+// Setas compatíveis com todos os sistemas/browsers móveis
+const SORT_OPTIONS = [
+  { value: "preco_asc",      label: "Preço ↑" },
+  { value: "preco_desc",     label: "Preço ↓" },
+  { value: "distancia_asc",  label: "Distância ↑", radiusOnly: true },
+  { value: "distancia_desc", label: "Distância ↓", radiusOnly: true },
+] as const;
+
 export default function PostosListPanel({
   dark,
   busy,
@@ -57,12 +67,16 @@ export default function PostosListPanel({
   setSortOrdenacao,
   tipoAtivo,
 }: Props) {
+  const [vistaDetalhada, setVistaDetalhada] = useState(true);
+
+  const showControls = hasSearched && !busy && postosVisiveis.length > 0;
+
   return (
     <div
       className="lista-col"
       style={{ display: "flex", flexDirection: "column", gap: "0.55rem", minWidth: 0 }}
     >
-      {/* ── Barra de status + card de sort ── */}
+      {/* ── Barra de status + toggle + sort ── */}
       <div style={{ display: "flex", gap: "0.4rem", minWidth: 0 }}>
 
         {/* Card esquerdo — nr de postos */}
@@ -100,8 +114,69 @@ export default function PostosListPanel({
           </span>
         </div>
 
+        {/* Card centro — toggle vista */}
+        {showControls && (
+          <div
+            className="card"
+            style={{
+              padding: "0.2rem 0.35rem",
+              display: "flex",
+              alignItems: "center",
+              flexShrink: 0,
+              gap: "0.15rem",
+            }}
+          >
+            {/* Vista detalhada — primeiro */}
+            <button
+              onClick={() => setVistaDetalhada(true)}
+              title="Vista detalhada"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "0.2rem 0.4rem",
+                borderRadius: "0.35rem",
+                border: "none",
+                cursor: "pointer",
+                background: vistaDetalhada ? "var(--accent)" : "transparent",
+                color: vistaDetalhada ? "#fff" : "var(--text-muted)",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="5" rx="1" />
+                <rect x="3" y="10" width="18" height="5" rx="1" />
+                <rect x="3" y="17" width="18" height="5" rx="1" />
+              </svg>
+            </button>
+            {/* Vista resumida — segundo */}
+            <button
+              onClick={() => setVistaDetalhada(false)}
+              title="Vista resumida"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "0.2rem 0.4rem",
+                borderRadius: "0.35rem",
+                border: "none",
+                cursor: "pointer",
+                background: !vistaDetalhada ? "var(--accent)" : "transparent",
+                color: !vistaDetalhada ? "#fff" : "var(--text-muted)",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {/* Card direito — sort */}
-        {hasSearched && !busy && postosVisiveis.length > 0 && (
+        {showControls && (
           <div
             className="card"
             style={{
@@ -125,13 +200,12 @@ export default function PostosListPanel({
                   appearance: "none",
                   WebkitAppearance: "none",
                   outline: "none",
-                  minWidth: 85,
+                  minWidth: 90,
                 }}
               >
-                <option value="preco_asc">Preço 🠕</option>
-                <option value="preco_desc">Preço 🠗</option>
-                {hasRadiusSearch && <option value="distancia_asc">Distância 🠕</option>}
-                {hasRadiusSearch && <option value="distancia_desc">Distância 🠗</option>}
+                {SORT_OPTIONS.filter((o) => !o.radiusOnly || hasRadiusSearch).map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
               </select>
               <span
                 style={{
@@ -292,10 +366,13 @@ export default function PostosListPanel({
       )}
 
       {/* ── Lista de postos ── */}
-      {!busy &&
-        sortedPostos.map((posto) => (
-          <PostoCard key={posto.id} posto={posto} tipoAtivo={tipoAtivo} />
-        ))}
+      {!busy && vistaDetalhada && sortedPostos.map((posto) => (
+        <PostoCard key={posto.id} posto={posto} tipoAtivo={tipoAtivo} />
+      ))}
+
+      {!busy && !vistaDetalhada && sortedPostos.map((posto) => (
+        <PostoCardCompact key={posto.id} posto={posto} tipoAtivo={tipoAtivo} />
+      ))}
 
       {/* ── Rodapé DGEG ── */}
       {postos.length > 0 && (
