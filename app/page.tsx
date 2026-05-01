@@ -95,13 +95,13 @@ export default function Home() {
   } = useHomePageLogic();
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", overflowX: "hidden" }}>
       <style>{`
         @media (max-width: 900px) {
-          .main-grid { grid-template-columns: 1fr !important; }
+          .main-grid { grid-template-columns: 1fr !important; min-width: 0; overflow: hidden; }
           .mapa-col  { display: none !important; }
-          .lista-col  { order: 1; }
-          .filtros-col { order: 0; }
+          .lista-col  { order: 1; min-width: 0;}
+          .filtros-col { order: 0; min-width: 0;}
           .mobile-actions { display: flex !important; }
           .desktop-only { display: none !important; }
           .calc-sidebar { display: none !important; }

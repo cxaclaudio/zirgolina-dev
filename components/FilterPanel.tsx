@@ -223,6 +223,8 @@ export default function FilterPanel({
         top: 72,
         overflow: "visible",
         paddingBottom: "0.5rem",
+		minWidth: 0,
+		width: "100%",
       }}
     >
       <div
@@ -233,6 +235,8 @@ export default function FilterPanel({
           flexDirection: "column",
           gap: "0.45rem",
           overflow: "visible",
+		  minWidth: 0,
+		  width: "100%",
         }}
       >
         <p style={{ fontWeight: 700, fontSize: "0.82rem" }}>Filtros</p>
