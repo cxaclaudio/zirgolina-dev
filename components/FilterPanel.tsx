@@ -228,36 +228,61 @@ export default function FilterPanel({
       <div
         className="card"
         style={{
-          padding: "0.875rem",
+          padding: "0.65rem 0.75rem",
           display: "flex",
           flexDirection: "column",
-          gap: "0.6rem",
+          gap: "0.45rem",
           overflow: "visible",
         }}
       >
-        <p style={{ fontWeight: 700, fontSize: "0.8rem" }}>Filtros</p>
+        <p style={{ fontWeight: 700, fontSize: "0.82rem" }}>Filtros</p>
 
-        <div>
-          <label className="field-label">Distrito</label>
-          <select
-            value={idDistrito}
-            onChange={(e) => handleDistritoChange(e.target.value)}
-            className="field-input"
-          >
-            <option value="">Todos</option>
-            {distritos.map((d) => (
-              <option key={d.Id} value={String(d.Id)}>
-                {d.Descritivo}
-              </option>
-            ))}
-          </select>
-        </div>
+<div>
+<label className="field-label" style={{ fontSize: "0.58rem" }}>Distrito</label>
+  <div style={{ position: "relative" }}>
+    <select
+      value={idDistrito}
+      onChange={(e) => handleDistritoChange(e.target.value)}
+      className="field-input"
+      style={{
+        minHeight: "32px",
+        padding: "0.35rem 2rem 0.35rem 0.75rem",
+        fontSize: "0.76rem",
+        appearance: "none",
+        WebkitAppearance: "none",
+        cursor: "pointer",
+        width: "100%",
+      }}
+    >
+      <option value="">Todos</option>
+      {distritos.map((d) => (
+        <option key={d.Id} value={String(d.Id)}>
+          {d.Descritivo}
+        </option>
+      ))}
+    </select>
+    <span
+      style={{
+        position: "absolute",
+        right: "0.75rem",
+        top: "50%",
+        transform: "translateY(-50%)",
+        fontSize: "0.7rem",
+        lineHeight: 1,
+        pointerEvents: "none",
+        color: "var(--text-muted)",
+      }}
+    >
+      ▾
+    </span>
+  </div>
+</div>
 
         <div
           ref={municipiosBoxRef}
           style={{ position: "relative", overflow: "visible" }}
         >
-          <label className="field-label">Concelhos</label>
+<label className="field-label" style={{ fontSize: "0.58rem" }}>Concelhos</label>
 
           <button
             type="button"
@@ -270,32 +295,34 @@ export default function FilterPanel({
             className="field-input"
             aria-expanded={municipiosOpen}
             aria-haspopup="listbox"
-            style={{
-              width: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              textAlign: "left",
-              cursor: idDistrito ? "pointer" : "not-allowed",
-              minHeight: "44px",
-              padding: "0.65rem 0.75rem",
-              opacity: idDistrito ? 1 : 0.45,
-              gap: "0.5rem",
-            }}
+			style={{
+			width: "100%",
+			minWidth: 0,
+			display: "flex",
+			alignItems: "flex-start",   
+			justifyContent: "space-between",
+			overflow: "hidden",
+			textAlign: "left",
+			cursor: idDistrito ? "pointer" : "not-allowed",
+			minHeight: "32px",           
+			padding: "0.35rem 0.75rem",
+			opacity: idDistrito ? 1 : 0.45,
+			gap: "0.5rem",
+			}}
           >
-            <span
-              title={municipiosLabel}
-              style={{
-                fontSize: "0.76rem",
-                flex: 1,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                paddingRight: "0.5rem",
-              }}
-            >
-              {municipiosLabel}
-            </span>
+			<span
+			title={municipiosLabel}
+			style={{
+				fontSize: "0.76rem",
+				flex: 1,
+				minWidth: 0,
+				overflow: "hidden",
+				textOverflow: "ellipsis",
+				whiteSpace: "nowrap",
+			}}
+			>
+			{municipiosLabel}
+			</span>
 
             <span
               style={{
@@ -374,7 +401,8 @@ export default function FilterPanel({
           ref={marcasBoxRef}
           style={{ position: "relative", overflow: "visible" }}
         >
-          <label className="field-label">Marcas</label>
+<label className="field-label" style={{ fontSize: "0.58rem" }}>Marcas</label>
+
 
           <button
             type="button"
@@ -392,24 +420,24 @@ export default function FilterPanel({
               justifyContent: "space-between",
               textAlign: "left",
               cursor: "pointer",
-              minHeight: "44px",
-              padding: "0.65rem 0.75rem",
+              minHeight: "32px",
+              padding: "0.35rem 0.75rem",
               gap: "0.5rem",
             }}
           >
-            <span
-              title={marcasLabel}
-              style={{
-                fontSize: "0.76rem",
-                flex: 1,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                paddingRight: "0.5rem",
-              }}
-            >
-              {marcasLabel}
-            </span>
+<span
+  title={marcasLabel}
+  style={{
+				fontSize: "0.76rem",
+				flex: 1,
+				minWidth: 0,
+				overflow: "hidden",
+				textOverflow: "ellipsis",
+				whiteSpace: "nowrap",
+  }}
+>
+  {marcasLabel}
+</span>
 
             <span
               style={{
@@ -488,30 +516,37 @@ export default function FilterPanel({
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
-            gap: "0.5rem",
+            gap: "0.4rem",
+			marginTop: "0.1rem"
           }}
         >
-          <button
-            type="button"
-            onClick={() => {
-              closeDropdowns();
-              onSearch(vals());
-            }}
-            disabled={loading}
-            className="btn-primary"
-            style={{
-              background: monoColor,
-              color: dark ? "#000000" : "#ffffff",
-              borderColor: monoColor,
-              opacity: loading ? 0.7 : 1,
-            }}
-          >
-            {loading ? "A pesquisar..." : "Pesquisar"}
-          </button>
+<button
+  type="button"
+  onClick={() => { closeDropdowns(); onSearch(vals()); }}
+  disabled={loading}
+  className="btn-primary"
+  style={{
+    background: monoColor,
+    color: dark ? "#000000" : "#ffffff",
+    borderColor: monoColor,
+    opacity: loading ? 0.7 : 1,
+    padding: "0.35rem 0.5rem",
+    fontSize: "0.7rem",
+    minHeight: 32,
+    borderRadius: "0.5rem",
+  }}
+>
+  {loading ? "A pesquisar..." : "Pesquisar"}
+</button>
 
-          <button type="button" onClick={handleReset} className="btn-ghost">
-            Limpar
-          </button>
+<button
+  type="button"
+  onClick={handleReset}
+  className="btn-ghost"
+  style={{ padding: "0.35rem 0.5rem", fontSize: "0.7rem", minHeight: 32, borderRadius: "0.5rem" }}
+>
+  Limpar
+</button>
         </div>
 
         <p

@@ -36,20 +36,20 @@ export default function LocationRadiusPanel({
 
   const busy = loading || geoLoading;
 
-  const baseBtnStyle: React.CSSProperties = {
-    flex: 1,
-    borderRadius: "0.65rem",
-    padding: "0.55rem 0.75rem",
-    cursor: busy ? "not-allowed" : "pointer",
-    fontSize: "0.73rem",
-    fontWeight: 700,
-    transition: "all 0.15s ease",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 38,
-    opacity: busy ? 0.7 : 1,
-  };
+const baseBtnStyle: React.CSSProperties = {
+  flex: 1,
+  borderRadius: "0.5rem",
+  padding: "0.35rem 0.5rem",
+  cursor: busy ? "not-allowed" : "pointer",
+  fontSize: "0.7rem",
+  fontWeight: 700,
+  transition: "all 0.15s ease",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 32,
+  opacity: busy ? 0.7 : 1,
+};
 
   function getBtnStyle(km: 5 | 10 | 20): React.CSSProperties {
     const active = activeRadiusKm === km;
@@ -86,7 +86,7 @@ export default function LocationRadiusPanel({
           className="text-muted"
           style={{
             margin: 0,
-            fontSize: "0.69rem",
+            fontSize: "0.6rem",
             lineHeight: 1.45,
           }}
         >

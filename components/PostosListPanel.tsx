@@ -85,34 +85,21 @@ export default function PostosListPanel({
       </div>
 
       {!hasSearched && !hasMarca && !distritoAtivo && !loading && !geoLoading && postos.length === 0 && !error && (
-        <div
-          className="card"
-          style={{
-            padding: "2.5rem 1.5rem",
-            textAlign: "center",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "0.6rem",
-          }}
-        >
-          <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-            <circle cx="20" cy="20" r="18" stroke="var(--border)" strokeWidth="1.5" />
-            <path
-              d="M20 10 L20 20 L27 24"
-              stroke="var(--accent)"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <p style={{ fontWeight: 700, fontSize: "0.9rem" }}>
-            Selecione um distrito, uma marca ou perto de si
-          </p>
-          <p className="text-muted" style={{ fontSize: "0.74rem" }}>
-            Pode pesquisar por marca em todos os distritos ou por localização.
-          </p>
-        </div>
+		<div
+		className="card"
+		style={{
+			padding: "1rem 1.25rem",
+			textAlign: "center",
+			display: "flex",
+			flexDirection: "column",
+			alignItems: "center",
+			gap: "0.35rem",
+		}}
+		>
+		<p style={{ fontWeight: 700, fontSize: "0.8rem" }}>
+			Pesquise por distrito, concelhos, marcas ou localização.
+		</p>
+		</div>
       )}
 
       {!hasSearched && distritoAtivo && !hasMunicipioSelecionado && !hasMarca && !loading && !geoLoading && postos.length === 0 && !error && (

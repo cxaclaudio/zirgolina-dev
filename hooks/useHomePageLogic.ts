@@ -245,7 +245,7 @@ const syncUrl = useCallback((snap: UrlSnapshot) => {
     const temMarca = safeF.marcaIds.length > 0;
     const temSearch = !!safeF.search;
 
-    const podeSearch = temMarca || (temDistrito && temMunicipio) || temSearch;
+	const podeSearch = temMarca || temDistrito || temSearch;
 
     if (!podeSearch) {
       setError("");
@@ -874,9 +874,9 @@ useEffect(() => {
     hasSearch ||
     hasRadiusSearch;
 
-  const mostrarPins =
-    sortedPostos.length > 0 &&
-    (hasMunicipioSelecionado || hasMarca || hasRadiusSearch);
+	const mostrarPins =
+	sortedPostos.length > 0 &&
+	(hasMunicipioSelecionado || hasMarca || hasRadiusSearch || (distritoAtivo !== "" && hasSearched));
 
   const mostrarPinsDistrito =
     distritoAtivo !== "" &&
