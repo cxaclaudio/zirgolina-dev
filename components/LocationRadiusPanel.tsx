@@ -71,6 +71,7 @@ const baseBtnStyle: React.CSSProperties = {
       className="card"
       style={{
         padding: "0.85rem",
+		paddingBottom: "1.1rem",
         marginBottom: "0.75rem",
         display: "flex",
         flexDirection: "column",

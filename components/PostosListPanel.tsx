@@ -76,7 +76,7 @@ export default function PostosListPanel({
       style={{ display: "flex", flexDirection: "column", gap: "0.55rem", minWidth: 0 }}
     >
       {/* ── Barra de status + toggle + sort ── */}
-      <div style={{ display: "flex", gap: "0.4rem", minWidth: 0, alignItems: "center" }}>
+      <div style={{ display: "flex", gap: "0.4rem", minWidth: 0, alignItems: "stretch" }}>
 
         {/* Card esquerdo — nr de postos */}
         <div
@@ -88,6 +88,7 @@ export default function PostosListPanel({
             gap: "0.5rem",
             flex: 1,
             minWidth: 0,
+            borderRadius: "0.75rem",
           }}
         >
           <span
@@ -113,101 +114,100 @@ export default function PostosListPanel({
           </span>
         </div>
 
-        {/* Card centro — toggle vista */}
+{/* Card centro — toggle vista */}
+{showControls && (
+  <div
+    className="card"
+    style={{
+      padding: 0,              // ← sem padding, botões preenchem tudo
+      minWidth: "5.6rem",
+      display: "flex",
+      alignItems: "stretch",   // ← stretch para botões preencherem altura
+      flexShrink: 0,
+      gap: 0,                  // ← sem gap
+      alignSelf: "stretch",
+      borderRadius: "0.75rem",
+      overflow: "hidden",      // ← garante que os botões respeitam o radius do card
+    }}
+  >
+    <button
+      onClick={() => setVistaDetalhada(true)}
+      title="Vista detalhada"
+      style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        border: "none",
+        cursor: "pointer",
+        background: vistaDetalhada ? "var(--accent)" : "transparent",
+        color: vistaDetalhada ? "#fff" : "var(--text-muted)",
+        transition: "all 0.15s ease",
+      }}
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="18" height="5" rx="1" />
+        <rect x="3" y="10" width="18" height="5" rx="1" />
+        <rect x="3" y="17" width="18" height="5" rx="1" />
+      </svg>
+    </button>
+    <button
+      onClick={() => setVistaDetalhada(false)}
+      title="Vista resumida"
+      style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        border: "none",
+        cursor: "pointer",
+        background: !vistaDetalhada ? "var(--accent)" : "transparent",
+        color: !vistaDetalhada ? "#fff" : "var(--text-muted)",
+        transition: "all 0.15s ease",
+      }}
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <line x1="3" y1="12" x2="21" y2="12" />
+        <line x1="3" y1="18" x2="21" y2="18" />
+      </svg>
+    </button>
+  </div>
+)}
+        {/* Sort */}
         {showControls && (
           <div
-            className="card"
             style={{
-              padding: "0.2rem 0.35rem",
               display: "flex",
               alignItems: "center",
               flexShrink: 0,
-              gap: "0.15rem",
+              alignSelf: "stretch",
             }}
           >
-            <button
-              onClick={() => setVistaDetalhada(true)}
-              title="Vista detalhada"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "0.2rem 0.4rem",
-                borderRadius: "0.35rem",
-                border: "none",
-                cursor: "pointer",
-                background: vistaDetalhada ? "var(--accent)" : "transparent",
-                color: vistaDetalhada ? "#fff" : "var(--text-muted)",
-                transition: "all 0.15s ease",
-              }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="5" rx="1" />
-                <rect x="3" y="10" width="18" height="5" rx="1" />
-                <rect x="3" y="17" width="18" height="5" rx="1" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setVistaDetalhada(false)}
-              title="Vista resumida"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "0.2rem 0.4rem",
-                borderRadius: "0.35rem",
-                border: "none",
-                cursor: "pointer",
-                background: !vistaDetalhada ? "var(--accent)" : "transparent",
-                color: !vistaDetalhada ? "#fff" : "var(--text-muted)",
-                transition: "all 0.15s ease",
-              }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
-            </button>
-          </div>
-        )}
-
-        {/* Sort — sem card wrapper, o field-input é a caixa */}
-        {showControls && (
-          <div style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0 }}>
             <select
               value={sortOrdenacao}
               onChange={(e) => setSortOrdenacao(e.target.value as SortOrdenacao)}
               className="field-input"
               style={{
                 fontSize: "0.65rem",
-                padding: "0.25rem 1.6rem 0.25rem 0.6rem",
+                padding: "0 0.6rem",
                 cursor: "pointer",
                 appearance: "none",
                 WebkitAppearance: "none",
                 outline: "none",
-                minWidth: 95,
+                minWidth: 80,
                 minHeight: 0,
+                height: "100%",
+                borderRadius: "0.75rem",
+                background: "var(--bg-card)",
+                borderColor: "var(--border)",
+                textAlign: "center",
               }}
             >
               {SORT_OPTIONS.filter((o) => !o.radiusOnly || hasRadiusSearch).map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
-            <span
-              style={{
-                position: "absolute",
-                right: "0.45rem",
-                top: "50%",
-                transform: "translateY(-50%)",
-                fontSize: "0.6rem",
-                pointerEvents: "none",
-                color: "var(--text-muted)",
-                lineHeight: 1,
-              }}
-            >
-              ▾
-            </span>
           </div>
         )}
       </div>

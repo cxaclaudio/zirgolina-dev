@@ -373,7 +373,7 @@ export default function FilterPanel({
                       alignItems: "center",
                       gap: "0.55rem",
                       cursor: "pointer",
-                      padding: "0.3rem 0.2rem",
+                      padding: "0.5rem 0.4rem",
                       borderRadius: "0.45rem",
                       background: checked ? "var(--bg-input)" : "transparent",
                       userSelect: "none",
@@ -488,7 +488,7 @@ export default function FilterPanel({
                       alignItems: "center",
                       gap: "0.55rem",
                       cursor: "pointer",
-                      padding: "0.3rem 0.2rem",
+                      padding: "0.5rem 0.4rem",
                       borderRadius: "0.45rem",
                       background: checked ? "var(--bg-input)" : "transparent",
                       userSelect: "none",
@@ -521,7 +521,8 @@ export default function FilterPanel({
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
             gap: "0.4rem",
-			marginTop: "0.1rem"
+			marginTop: "0.55rem",
+			marginBottom: "0.55rem"
           }}
         >
 <button
@@ -552,13 +553,6 @@ export default function FilterPanel({
   Limpar
 </button>
         </div>
-
-        <p
-          className="text-muted"
-          style={{ fontSize: "0.68rem", marginTop: "-0.1rem" }}
-        >
-          {total} resultado{total === 1 ? "" : "s"}
-        </p>
       </div>
     </aside>
   );
