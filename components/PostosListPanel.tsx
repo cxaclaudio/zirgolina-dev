@@ -76,7 +76,7 @@ export default function PostosListPanel({
       style={{ display: "flex", flexDirection: "column", gap: "0.55rem", minWidth: 0 }}
     >
       {/* ── Barra de status + toggle + sort ── */}
-      <div style={{ display: "flex", gap: "0.4rem", minWidth: 0 }}>
+      <div style={{ display: "flex", gap: "0.4rem", minWidth: 0, alignItems: "center" }}>
 
         {/* Card esquerdo — nr de postos */}
         <div
@@ -125,7 +125,6 @@ export default function PostosListPanel({
               gap: "0.15rem",
             }}
           >
-            {/* Vista detalhada — primeiro */}
             <button
               onClick={() => setVistaDetalhada(true)}
               title="Vista detalhada"
@@ -148,7 +147,6 @@ export default function PostosListPanel({
                 <rect x="3" y="17" width="18" height="5" rx="1" />
               </svg>
             </button>
-            {/* Vista resumida — segundo */}
             <button
               onClick={() => setVistaDetalhada(false)}
               title="Vista resumida"
@@ -174,53 +172,42 @@ export default function PostosListPanel({
           </div>
         )}
 
-        {/* Card direito — sort */}
+        {/* Sort — sem card wrapper, o field-input é a caixa */}
         {showControls && (
-          <div
-            className="card"
-            style={{
-              padding: "0.2rem 0.35rem",
-              display: "flex",
-              alignItems: "center",
-              flexShrink: 0,
-            }}
-          >
-            <div style={{ position: "relative" }}>
-              <select
-                value={sortOrdenacao}
-                onChange={(e) => setSortOrdenacao(e.target.value as SortOrdenacao)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--text)",
-                  fontSize: "0.65rem",
-                  padding: "0.15rem 1.3rem 0.15rem 0.3rem",
-                  cursor: "pointer",
-                  appearance: "none",
-                  WebkitAppearance: "none",
-                  outline: "none",
-                  minWidth: 90,
-                }}
-              >
-                {SORT_OPTIONS.filter((o) => !o.radiusOnly || hasRadiusSearch).map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-              <span
-                style={{
-                  position: "absolute",
-                  right: "0.25rem",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  fontSize: "0.6rem",
-                  pointerEvents: "none",
-                  color: "var(--text-muted)",
-                  lineHeight: 1,
-                }}
-              >
-                ▾
-              </span>
-            </div>
+          <div style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0 }}>
+            <select
+              value={sortOrdenacao}
+              onChange={(e) => setSortOrdenacao(e.target.value as SortOrdenacao)}
+              className="field-input"
+              style={{
+                fontSize: "0.65rem",
+                padding: "0.25rem 1.6rem 0.25rem 0.6rem",
+                cursor: "pointer",
+                appearance: "none",
+                WebkitAppearance: "none",
+                outline: "none",
+                minWidth: 95,
+                minHeight: 0,
+              }}
+            >
+              {SORT_OPTIONS.filter((o) => !o.radiusOnly || hasRadiusSearch).map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <span
+              style={{
+                position: "absolute",
+                right: "0.45rem",
+                top: "50%",
+                transform: "translateY(-50%)",
+                fontSize: "0.6rem",
+                pointerEvents: "none",
+                color: "var(--text-muted)",
+                lineHeight: 1,
+              }}
+            >
+              ▾
+            </span>
           </div>
         )}
       </div>
