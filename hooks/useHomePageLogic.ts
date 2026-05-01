@@ -18,6 +18,7 @@ import {
   normText,
   sanitizeFilters,
   type CombustivelOrdenacao,
+  type SortOrdenacao,
   type MapFlyRefType,
 } from "@/hooks/homePage.utils";
 
@@ -67,7 +68,9 @@ export function useHomePageLogic() {
   const [fuelId, setFuelId] = useState("3201");
   const [distritoAtivo, setDistritoAtivo] = useState("");
   const [municipioAtivo, setMunicipioAtivo] = useState("");
-  const [ordenacao, setOrdenacao] = useState<CombustivelOrdenacao>("gasolina_asc");
+const [sortOrdenacao, setSortOrdenacao] = useState<SortOrdenacao>("preco_asc");
+const [ordenacao, setOrdenacao] = useState<CombustivelOrdenacao>("gasolina_asc");
+
   const [mapaOpen, setMapaOpen] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
   const [doarOpen, setDoarOpen] = useState(false);
@@ -854,18 +857,32 @@ useEffect(() => {
     return minP;
   })();
 
-  const sortedPostos = useMemo(() => {
-    const unique = dedupePostos(postosVisiveis);
+const sortedPostos = useMemo(() => {
+  const unique = dedupePostos(postosVisiveis);
 
-    return [...unique].sort((a, b) => {
-      if (!tipoAtivo) return 0;
+  return [...unique].sort((a, b) => {
+    if (sortOrdenacao === "distancia_asc" || sortOrdenacao === "distancia_desc") {
+      const uLat = userLocation?.lat;
+      const uLng = userLocation?.lng;
+      if (uLat == null || uLng == null) {
+        // fallback para preço asc
+        const pa = tipoAtivo ? getPrecoCombustivel(a, tipoAtivo) : a.preco;
+        const pb = tipoAtivo ? getPrecoCombustivel(b, tipoAtivo) : b.preco;
+        const diff = (pa ?? Infinity) - (pb ?? Infinity);
+        return sortOrdenacao === "distancia_desc" ? -diff : diff;
+      }
+      const dA = haversineKm(uLat, uLng, a.lat as number, a.lng as number);
+      const dB = haversineKm(uLat, uLng, b.lat as number, b.lng as number);
+      return sortOrdenacao === "distancia_asc" ? dA - dB : dB - dA;
+    }
 
-      const pa = getPrecoCombustivel(a, tipoAtivo);
-      const pb = getPrecoCombustivel(b, tipoAtivo);
-
-      return (pa ?? Infinity) - (pb ?? Infinity);
-    });
-  }, [postosVisiveis, tipoAtivo]);
+    // preco_asc / preco_desc
+    const pa = tipoAtivo ? getPrecoCombustivel(a, tipoAtivo) : a.preco;
+    const pb = tipoAtivo ? getPrecoCombustivel(b, tipoAtivo) : b.preco;
+    const diff = (pa ?? Infinity) - (pb ?? Infinity);
+    return sortOrdenacao === "preco_desc" ? -diff : diff;
+  });
+}, [postosVisiveis, tipoAtivo, sortOrdenacao, userLocation]);
 
   const hasQueryContext =
     distritoAtivo !== "" ||
@@ -991,5 +1008,7 @@ useEffect(() => {
     mostrarPinsDistrito,
     busy,
     mapProps,
+	sortOrdenacao,
+	setSortOrdenacao,
   };
 }

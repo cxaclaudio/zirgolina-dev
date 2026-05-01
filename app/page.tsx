@@ -92,6 +92,8 @@ export default function Home() {
     showRadiusMarcaFilter,
     radiusMarcaId,
     availableRadiusMarcas,
+	  sortOrdenacao,
+  setSortOrdenacao,
   } = useHomePageLogic();
 
   return (
@@ -202,6 +204,8 @@ export default function Home() {
           hasRadiusSearch={hasRadiusSearch}
           activeRadiusKm={activeRadiusKm}
           ordenacao={ordenacao}
+		    sortOrdenacao={sortOrdenacao}
+  setSortOrdenacao={setSortOrdenacao}
           setOrdenacao={(value: string) =>
             setOrdenacao(value as CombustivelOrdenacao)
           }

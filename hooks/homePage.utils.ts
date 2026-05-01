@@ -1,6 +1,7 @@
 import type { FilterValues } from "@/components/FilterPanel";
 
 export type CombustivelOrdenacao = "gasolina_asc" | "gasoleo_asc" | "gpl_asc";
+export type SortOrdenacao = "preco_asc" | "preco_desc" | "distancia_asc" | "distancia_desc";
 export type TipoCombustivelAtivo = "gasolina" | "gasoleo" | "gpl" | null;
 
 export type MapFlyRefType = {

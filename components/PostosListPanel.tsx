@@ -2,6 +2,7 @@
 
 import type { Posto } from "@/lib/dgeg";
 import PostoCard from "@/components/PostoCard";
+import type { SortOrdenacao } from "@/hooks/homePage.utils";
 
 type TipoAtivo = "gasolina" | "gasoleo" | "gpl" | null;
 
@@ -23,13 +24,15 @@ type Props = {
   activeRadiusKm: 5 | 10 | 20 | null;
   ordenacao: string;
   setOrdenacao: (value: string) => void;
+  sortOrdenacao: SortOrdenacao;
+  setSortOrdenacao: (value: SortOrdenacao) => void;
   tipoAtivo: TipoAtivo;
 };
 
-const SORT_BTNS = [
-  { label: "⬇ Gasolina", value: "gasolina_asc" },
-  { label: "⬇ Gasóleo", value: "gasoleo_asc" },
-  { label: "⬇ GPL", value: "gpl_asc" },
+const FILTER_BTNS = [
+  { label: "Gasolina", value: "gasolina_asc" },
+  { label: "Gasóleo", value: "gasoleo_asc" },
+  { label: "GPL", value: "gpl_asc" },
 ] as const;
 
 export default function PostosListPanel({
@@ -50,6 +53,8 @@ export default function PostosListPanel({
   activeRadiusKm,
   ordenacao,
   setOrdenacao,
+  sortOrdenacao,
+  setSortOrdenacao,
   tipoAtivo,
 }: Props) {
   return (
@@ -57,51 +62,116 @@ export default function PostosListPanel({
       className="lista-col"
       style={{ display: "flex", flexDirection: "column", gap: "0.55rem", minWidth: 0 }}
     >
-      <div
-        className="card"
-        style={{ padding: "0.45rem 0.875rem", display: "flex", alignItems: "center", gap: "0.5rem" }}
-      >
-        <span
+      {/* ── Barra de status + card de sort ── */}
+      <div style={{ display: "flex", gap: "0.4rem", minWidth: 0 }}>
+
+        {/* Card esquerdo — nr de postos */}
+        <div
+          className="card"
           style={{
-            width: 7,
-            height: 7,
-            borderRadius: "50%",
-            flexShrink: 0,
-            display: "inline-block",
-            background: busy ? "#f97316" : hasQueryContext ? "#22c55e" : "var(--text-muted)",
+            padding: "0.35rem 0.75rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            flex: 1,
+            minWidth: 0,
           }}
-        />
-        <span className="text-muted" style={{ fontSize: "0.72rem" }}>
-          {busy
-            ? "A carregar…"
-            : hasSearched && hasRadiusSearch
-            ? `${postosVisiveis.length} postos até ${activeRadiusKm} km`
-            : hasSearched
-            ? `${postosVisiveis.length} postos`
-            : hasQueryContext
-            ? "Pronto a pesquisar"
-            : "Selecione filtros"}
-        </span>
+        >
+          <span
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              flexShrink: 0,
+              display: "inline-block",
+              background: busy ? "#f97316" : hasQueryContext ? "#22c55e" : "var(--text-muted)",
+            }}
+          />
+          <span className="text-muted" style={{ fontSize: "0.72rem", minWidth: 0 }}>
+            {busy
+              ? "A carregar…"
+              : hasSearched && hasRadiusSearch
+              ? `${postosVisiveis.length} postos até ${activeRadiusKm} km`
+              : hasSearched
+              ? `${postosVisiveis.length} postos`
+              : hasQueryContext
+              ? "Pronto a pesquisar"
+              : "Selecione filtros"}
+          </span>
+        </div>
+
+        {/* Card direito — sort */}
+        {hasSearched && !busy && postosVisiveis.length > 0 && (
+          <div
+            className="card"
+            style={{
+              padding: "0.2rem 0.35rem",
+              display: "flex",
+              alignItems: "center",
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ position: "relative" }}>
+              <select
+                value={sortOrdenacao}
+                onChange={(e) => setSortOrdenacao(e.target.value as SortOrdenacao)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--text)",
+                  fontSize: "0.65rem",
+                  padding: "0.15rem 1.3rem 0.15rem 0.3rem",
+                  cursor: "pointer",
+                  appearance: "none",
+                  WebkitAppearance: "none",
+                  outline: "none",
+                  minWidth: 85,
+                }}
+              >
+                <option value="preco_asc">Preço 🠕</option>
+                <option value="preco_desc">Preço 🠗</option>
+                {hasRadiusSearch && <option value="distancia_asc">Distância 🠕</option>}
+                {hasRadiusSearch && <option value="distancia_desc">Distância 🠗</option>}
+              </select>
+              <span
+                style={{
+                  position: "absolute",
+                  right: "0.25rem",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  fontSize: "0.6rem",
+                  pointerEvents: "none",
+                  color: "var(--text-muted)",
+                  lineHeight: 1,
+                }}
+              >
+                ▾
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
+      {/* ── Estado vazio inicial ── */}
       {!hasSearched && !hasMarca && !distritoAtivo && !loading && !geoLoading && postos.length === 0 && !error && (
-		<div
-		className="card"
-		style={{
-			padding: "1rem 1.25rem",
-			textAlign: "center",
-			display: "flex",
-			flexDirection: "column",
-			alignItems: "center",
-			gap: "0.35rem",
-		}}
-		>
-		<p style={{ fontWeight: 700, fontSize: "0.8rem" }}>
-			Pesquise por distrito, concelhos, marcas ou localização.
-		</p>
-		</div>
+        <div
+          className="card"
+          style={{
+            padding: "1rem 1.25rem",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "0.35rem",
+          }}
+        >
+          <p style={{ fontWeight: 700, fontSize: "0.8rem" }}>
+            Pesquise por distrito, concelhos, marcas ou localização.
+          </p>
+        </div>
       )}
 
+      {/* ── Distrito selecionado mas sem concelho/marca ── */}
       {!hasSearched && distritoAtivo && !hasMunicipioSelecionado && !hasMarca && !loading && !geoLoading && postos.length === 0 && !error && (
         <div
           className="card"
@@ -122,14 +192,9 @@ export default function PostosListPanel({
         </div>
       )}
 
+      {/* ── Sem resultados após pesquisa ── */}
       {hasSearched && !busy && postos.length === 0 && !error && (
-        <div
-          className="card"
-          style={{
-            padding: "1.25rem",
-            textAlign: "center",
-          }}
-        >
+        <div className="card" style={{ padding: "1.25rem", textAlign: "center" }}>
           <p style={{ fontWeight: 700, fontSize: "0.8rem" }}>Sem resultados</p>
           <p className="text-muted" style={{ fontSize: "0.68rem", marginTop: "0.2rem" }}>
             Nenhum posto encontrado para os filtros atuais.
@@ -137,65 +202,66 @@ export default function PostosListPanel({
         </div>
       )}
 
+      {/* ── Botões de filtro por tipo de combustível ── */}
       {postos.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-          <div style={{ display: "flex", gap: "0.3rem" }}>
-            {SORT_BTNS.map((opt) => {
-              const active = ordenacao === opt.value;
+        <div style={{ display: "flex", gap: "0.3rem" }}>
+          {FILTER_BTNS.map((opt) => {
+            const active = ordenacao === opt.value;
 
-              const colors: Record<string, { bg: string; border: string; text: string }> = {
-                gasolina_asc: {
-                  bg: active ? "var(--accent)" : "transparent",
-                  border: active ? "var(--accent)" : "var(--border)",
-                  text: active ? "#fff" : "var(--text-muted)",
-                },
-                gasoleo_asc: {
-                  bg: active ? (dark ? "#ffffff" : "#000000") : "transparent",
-                  border: active ? (dark ? "#ffffff" : "#000000") : "var(--border)",
-                  text: active ? (dark ? "#000000" : "#ffffff") : "var(--text-muted)",
-                },
-                gpl_asc: {
-                  bg: active ? "#00A8FF" : "transparent",
-                  border: active ? "#00A8FF" : "var(--border)",
-                  text: active ? "#ffffff" : "var(--text-muted)",
-                },
-              };
+            const colors: Record<string, { bg: string; border: string; text: string }> = {
+              gasolina_asc: {
+                bg: active ? "var(--accent)" : "transparent",
+                border: active ? "var(--accent)" : "var(--border)",
+                text: active ? "#fff" : "var(--text-muted)",
+              },
+              gasoleo_asc: {
+                bg: active ? (dark ? "#ffffff" : "#000000") : "transparent",
+                border: active ? (dark ? "#ffffff" : "#000000") : "var(--border)",
+                text: active ? (dark ? "#000000" : "#ffffff") : "var(--text-muted)",
+              },
+              gpl_asc: {
+                bg: active ? "#00A8FF" : "transparent",
+                border: active ? "#00A8FF" : "var(--border)",
+                text: active ? "#ffffff" : "var(--text-muted)",
+              },
+            };
 
-              const c = colors[opt.value];
+            const c = colors[opt.value];
 
-              return (
-                <button
-                  key={opt.value}
-                  onClick={() => setOrdenacao(opt.value)}
-                  className="btn-ghost"
-                  style={{
-                    fontSize: "0.68rem",
-                    padding: "0.25rem 0.5rem",
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "0.3rem",
-                    background: c.bg,
-                    color: c.text,
-                    borderColor: c.border,
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
+            return (
+              <button
+                key={opt.value}
+                onClick={() => setOrdenacao(opt.value)}
+                className="btn-ghost"
+                style={{
+                  fontSize: "0.68rem",
+                  padding: "0.25rem 0.5rem",
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.3rem",
+                  background: c.bg,
+                  color: c.text,
+                  borderColor: c.border,
+                  transition: "all 0.15s ease",
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
       )}
 
+      {/* ── Erro ── */}
       {error && (
         <div className="card" style={{ padding: "0.65rem", color: "#f87171", fontSize: "0.73rem" }}>
           {error}
         </div>
       )}
 
+      {/* ── Loading spinner ── */}
       {busy && (
         <div className="card" style={{ padding: "1.5rem", textAlign: "center" }}>
           <div
@@ -215,6 +281,7 @@ export default function PostosListPanel({
         </div>
       )}
 
+      {/* ── Sem postos com GPL ── */}
       {!busy && postos.length > 0 && postosVisiveis.length === 0 && !error && (
         <div className="card" style={{ padding: "1.25rem", textAlign: "center" }}>
           <p style={{ fontWeight: 700, fontSize: "0.8rem" }}>Sem postos com GPL</p>
@@ -224,17 +291,19 @@ export default function PostosListPanel({
         </div>
       )}
 
+      {/* ── Lista de postos ── */}
       {!busy &&
         sortedPostos.map((posto) => (
           <PostoCard key={posto.id} posto={posto} tipoAtivo={tipoAtivo} />
         ))}
 
+      {/* ── Rodapé DGEG ── */}
       {postos.length > 0 && (
         <p
           className="text-muted"
           style={{ fontSize: "0.56rem", textAlign: "center", padding: "0.2rem 0 0.5rem" }}
         >
-          Fonte: DGEG · precoscombustiveis.dgeg.gov.pt
+          Fonte: DGEG · Direção-Geral de Energia e Geologia
         </p>
       )}
     </div>
