@@ -37,13 +37,12 @@ const FILTER_BTNS = [
   { label: "GPL", value: "gpl_asc" },
 ] as const;
 
-// Setas compatíveis com todos os sistemas/browsers móveis
-const SORT_OPTIONS = [
+const SORT_OPTIONS: { value: SortOrdenacao; label: string; radiusOnly?: boolean }[] = [
   { value: "preco_asc",      label: "Preço ↑" },
   { value: "preco_desc",     label: "Preço ↓" },
   { value: "distancia_asc",  label: "Distância ↑", radiusOnly: true },
   { value: "distancia_desc", label: "Distância ↓", radiusOnly: true },
-] as const;
+];
 
 export default function PostosListPanel({
   dark,
