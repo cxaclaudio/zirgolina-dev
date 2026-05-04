@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTheme } from "@/components/ThemeProvider";
 
 interface RadiusMarcaOption {
@@ -58,6 +58,25 @@ export default function LocationRadiusPanel({
   const marcasBoxRef = useRef<HTMLDivElement | null>(null);
 
   const busy = loading || geoLoading;
+
+  useEffect(() => {
+    function handlePointerDown(e: MouseEvent | TouchEvent) {
+      const target = e.target as Node;
+      const insideMarcas = marcasBoxRef.current?.contains(target) ?? false;
+      if (!insideMarcas) setMarcasOpen(false);
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setMarcasOpen(false);
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown, { passive: true });
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
 
   const baseBtnStyle: React.CSSProperties = {
     flex: 1,
@@ -125,7 +144,6 @@ export default function LocationRadiusPanel({
         gap: "0.65rem",
       }}
     >
-      {/* ── Cabeçalho ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
         <p style={{ margin: 0, fontSize: "0.82rem", fontWeight: 700 }}>
           Perto de mim
@@ -138,7 +156,6 @@ export default function LocationRadiusPanel({
         </p>
       </div>
 
-      {/* ── Botões de raio ── */}
       <div style={{ display: "flex", gap: "0.4rem" }}>
         <button type="button" disabled={busy} onClick={() => onSearchByRadius(5)} style={getBtnStyle(5)}>
           5 km
@@ -151,10 +168,8 @@ export default function LocationRadiusPanel({
         </button>
       </div>
 
-      {/* ── Marcas + Desconto: apenas visíveis após pesquisa geo ── */}
       {showRadiusMarcaFilter && (
         <>
-          {/* Marcas */}
           <div ref={marcasBoxRef} style={{ position: "relative", overflow: "visible" }}>
             <label className="field-label" style={{ fontSize: "0.58rem" }}>Marcas</label>
 
@@ -261,66 +276,49 @@ export default function LocationRadiusPanel({
             )}
           </div>
 
-          {/* Desconto */}
           <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <label className="field-label" style={{ fontSize: "0.58rem", marginBottom: 0 }}>
                 Desconto
               </label>
-              {/* Pill Não/Sim */}
-              <div
+              <button
+                type="button"
+                role="switch"
+                aria-checked={descontoAtivo}
+                aria-label="Tem cupão de desconto?"
+                onClick={() => {
+                  if (descontoAtivo) {
+                    fireDescontoChange(false, null, "");
+                  } else {
+                    fireDescontoChange(true, descontoCentimos, descontoMarcaId);
+                  }
+                }}
                 style={{
-                  display: "flex",
-                  alignItems: "stretch",
-                  width: "5.6rem",
+                  position: "relative",
+                  width: 46,
                   height: 26,
-                  borderRadius: "0.75rem",
-                  overflow: "hidden",
+                  borderRadius: 999,
                   border: "1px solid var(--border)",
+                  background: descontoAtivo ? "#22c55e" : dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)",
+                  transition: "background 160ms ease, border-color 160ms ease",
                   flexShrink: 0,
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => fireDescontoChange(false, null, "")}
-                  title="Não tenho cupão"
+                <span
+                  aria-hidden="true"
                   style={{
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: "0.62rem",
-                    fontWeight: 700,
-                    background: !descontoAtivo ? "#ef4444" : "transparent",
-                    color: !descontoAtivo ? "#fff" : "var(--text-muted)",
-                    transition: "all 0.15s ease",
+                    position: "absolute",
+                    top: 2,
+                    left: descontoAtivo ? 22 : 2,
+                    width: 20,
+                    height: 20,
+                    borderRadius: "50%",
+                    background: "#ffffff",
+                    boxShadow: dark ? "0 1px 4px rgba(0,0,0,0.45)" : "0 1px 4px rgba(0,0,0,0.2)",
+                    transition: "left 160ms ease",
                   }}
-                >
-                  Não
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fireDescontoChange(true, descontoCentimos, descontoMarcaId)}
-                  title="Tenho cupão de desconto"
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: "0.62rem",
-                    fontWeight: 700,
-                    background: descontoAtivo ? "#22c55e" : "transparent",
-                    color: descontoAtivo ? "#fff" : "var(--text-muted)",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  Sim
-                </button>
-              </div>
+                />
+              </button>
             </div>
 
             {descontoAtivo && (
@@ -414,7 +412,6 @@ export default function LocationRadiusPanel({
         </>
       )}
 
-      {/* ── Estados geo ── */}
       {geoLoading && (
         <p className="text-muted" style={{ margin: 0, fontSize: "0.68rem" }}>
           A obter localização…
