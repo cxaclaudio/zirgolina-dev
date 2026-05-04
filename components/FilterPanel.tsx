@@ -55,7 +55,6 @@ export default function FilterPanel({
   const [municipiosOpen, setMunicipiosOpen] = useState(false);
   const [marcasOpen, setMarcasOpen] = useState(false);
 
-  // Desconto state
   const [descontoAtivo, setDescontoAtivo] = useState(false);
   const [descontoCentimos, setDescontoCentimos] = useState<number | null>(null);
   const [descontoMarcaId, setDescontoMarcaId] = useState("");
@@ -229,7 +228,7 @@ export default function FilterPanel({
           padding: "0.65rem 0.75rem",
           display: "flex",
           flexDirection: "column",
-          gap: "0.45rem",
+          gap: "0.55rem",
           overflow: "visible",
           minWidth: 0,
           width: "100%",
@@ -502,13 +501,25 @@ export default function FilterPanel({
           )}
         </div>
 
-        {/* ── Desconto toggle ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 32 }}>
-            <span style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text)" }}>
-              Tem cupão de desconto?
-            </span>
-            {/* Toggle Não/Sim */}
+        {/* ── Secção Desconto ── */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.55rem",
+            marginTop: "0.3rem",
+            paddingTop: "0.55rem",
+            borderTop: dark
+              ? "1px solid rgba(255,255,255,0.08)"
+              : "1px solid rgba(0,0,0,0.07)",
+          }}
+        >
+          {/* Label + Toggle numa linha */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <label className="field-label" style={{ fontSize: "0.58rem", marginBottom: 0 }}>
+              Desconto
+            </label>
+            {/* Pill Não/Sim */}
             <div
               style={{
                 display: "flex",
@@ -572,13 +583,14 @@ export default function FilterPanel({
             </div>
           </div>
 
+          {/* Sub-painel expandido */}
           {descontoAtivo && (
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: "0.35rem",
-                padding: "0.5rem 0.6rem",
+                gap: "0.55rem",
+                padding: "0.65rem 0.75rem",
                 borderRadius: "0.5rem",
                 background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
                 border: dark
