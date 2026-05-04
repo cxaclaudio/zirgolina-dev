@@ -501,20 +501,8 @@ export default function FilterPanel({
           )}
         </div>
 
-        {/* ── Secção Desconto ── */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.55rem",
-            marginTop: "0.3rem",
-            paddingTop: "0.55rem",
-            borderTop: dark
-              ? "1px solid rgba(255,255,255,0.08)"
-              : "1px solid rgba(0,0,0,0.07)",
-          }}
-        >
-          {/* Label + Toggle numa linha */}
+        {/* ── Desconto ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <label className="field-label" style={{ fontSize: "0.58rem", marginBottom: 0 }}>
               Desconto
@@ -583,7 +571,6 @@ export default function FilterPanel({
             </div>
           </div>
 
-          {/* Sub-painel expandido */}
           {descontoAtivo && (
             <div
               style={{
