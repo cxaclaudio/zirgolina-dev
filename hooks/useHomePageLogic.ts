@@ -914,5 +914,6 @@ export function useHomePageLogic() {
     descontoAtivo,
     descontoCentimos,
     descontoMarcaNome,
+    descontoMarcaId: descontoMarcaIdEfetivo,
   };
 }
