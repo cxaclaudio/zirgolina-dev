@@ -170,6 +170,7 @@ export default function LocationRadiusPanel({
 
       {showRadiusMarcaFilter && (
         <>
+          {/* ── Marcas ── */}
           <div ref={marcasBoxRef} style={{ position: "relative", overflow: "visible" }}>
             <label className="field-label" style={{ fontSize: "0.58rem" }}>Marcas</label>
 
@@ -276,6 +277,7 @@ export default function LocationRadiusPanel({
             )}
           </div>
 
+          {/* ── Desconto ── */}
           <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <label className="field-label" style={{ fontSize: "0.58rem", marginBottom: 0 }}>
@@ -297,7 +299,7 @@ export default function LocationRadiusPanel({
                   position: "relative",
                   width: 46,
                   height: 26,
-                  borderRadius: 999,
+                  borderRadius: 6,
                   border: "1px solid var(--border)",
                   background: descontoAtivo ? "#22c55e" : dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)",
                   transition: "background 160ms ease, border-color 160ms ease",
@@ -312,7 +314,7 @@ export default function LocationRadiusPanel({
                     left: descontoAtivo ? 22 : 2,
                     width: 20,
                     height: 20,
-                    borderRadius: "50%",
+                    borderRadius: 4,
                     background: "#ffffff",
                     boxShadow: dark ? "0 1px 4px rgba(0,0,0,0.45)" : "0 1px 4px rgba(0,0,0,0.2)",
                     transition: "left 160ms ease",
