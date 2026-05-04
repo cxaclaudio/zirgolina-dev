@@ -99,10 +99,11 @@ export default function Home() {
     radiusDescontoCentimos,
     radiusDescontoMarcaId,
     handleRadiusDescontoChange,
-    // desconto calculado (para PostosListPanel)
+    // desconto calculado (para PostosListPanel + MapView)
     descontoAtivo,
     descontoCentimos,
     descontoMarcaNome,
+    descontoMarcaId,
   } = useHomePageLogic();
 
   return (
@@ -238,6 +239,8 @@ export default function Home() {
             {...mapProps}
             flyRef={mapFlyRefDesktop}
             invalidateRef={mapInvalidateRefDesktop}
+            descontoCentimos={descontoCentimos}
+            descontoMarcaId={descontoMarcaId}
           />
         </div>
       </div>
@@ -290,6 +293,8 @@ export default function Home() {
             {...mapProps}
             flyRef={mapFlyRefMobile}
             invalidateRef={mapInvalidateRefMobile}
+            descontoCentimos={descontoCentimos}
+            descontoMarcaId={descontoMarcaId}
           />
         </div>
       </div>
