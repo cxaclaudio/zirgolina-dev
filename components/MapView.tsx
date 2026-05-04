@@ -17,6 +17,8 @@ interface Props {
     flyToDistrito: (id: string) => void;
     flyToConcelho: (distritoId: string, concelhoNome: string) => void;
   } | null>;
+  descontoCentimos?: number | null;
+  descontoMarcaId?: string;
 }
 
 const DISTRITOS_URL = "/distritos.geojson";
@@ -89,6 +91,12 @@ async function fetchGeoJSON(url: string) {
   }
 }
 
+/** Converte texto de preço "1,234" ou "1.234" → número, null se inválido */
+function parsePreco(texto: string): number | null {
+  const n = parseFloat(texto.replace(",", ".").replace(/[^\d.]/g, ""));
+  return isNaN(n) ? null : n;
+}
+
 export default function MapView({
   postos,
   userLocation,
@@ -99,6 +107,8 @@ export default function MapView({
   mostrarPinsDistrito,
   flyRef,
   invalidateRef,
+  descontoCentimos = null,
+  descontoMarcaId = "",
 }: Props) {
   const mapRef = useRef<any>(null);
   const pinsLayerRef = useRef<any>(null);
@@ -370,6 +380,14 @@ export default function MapView({
             return;
           }
 
+          // Desconto: só aplica se o posto tem a marca certa e o desconto está definido
+          const postoMarcaId = String(posto.marcaId ?? "");
+          const temDesconto =
+            !!descontoCentimos &&
+            descontoCentimos > 0 &&
+            !!descontoMarcaId &&
+            postoMarcaId === descontoMarcaId;
+
           const marcaCor = getMarcaCor(posto.marca ?? "");
           const icon = L.divIcon({
             className: "",
@@ -380,18 +398,38 @@ export default function MapView({
 
           const combsHtml =
             posto.combustiveis
-              .map(
-                (c: any) => `
-            <div style="display:flex;justify-content:space-between;gap:1rem;font-size:0.72rem">
-              <span style="color:#888">${c.tipo}</span>
-              <b style="color:#555">${c.texto}</b>
-            </div>`
-              )
+              .map((c: any) => {
+                const precoOriginal = parsePreco(c.texto);
+                const temDesc = temDesconto && precoOriginal !== null;
+                const precoDesc = temDesc
+                  ? ((precoOriginal! * 1000 - descontoCentimos!) / 1000).toFixed(3)
+                  : null;
+
+                const precoHtml = temDesc
+                  ? `<span style="display:inline-flex;align-items:center;gap:0.35rem">
+                       <s style="color:#bbb;font-size:0.68rem">${c.texto}</s>
+                       <b style="color:#16a34a">${precoDesc}</b>
+                       <span style="font-size:0.6rem;color:#16a34a;background:#dcfce7;padding:1px 4px;border-radius:3px">-${descontoCentimos}c</span>
+                     </span>`
+                  : `<b style="color:#555">${c.texto}</b>`;
+
+                return `
+                  <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;font-size:0.72rem">
+                    <span style="color:#888">${c.tipo}</span>
+                    ${precoHtml}
+                  </div>`;
+              })
               .join("") || `<span style="font-size:0.72rem;color:#888">Sem preços</span>`;
+
+          const descontoBadge = temDesconto
+            ? `<div style="margin-top:6px;font-size:0.65rem;color:#15803d;background:#dcfce7;padding:2px 7px;border-radius:4px;display:inline-block">
+                 🏷️ Cupão ${descontoCentimos}c/L aplicado
+               </div>`
+            : "";
 
           const marker = L.marker([posto.lat, posto.lng], { icon }).bindPopup(
             `
-<div style="min-width:180px">
+<div style="min-width:190px">
   <p style="font-weight:700;margin:0 0 2px">
     <span style="color:${marcaCor}">${posto.marca}</span>
     <span style="color:#aaa;margin:0 0.3rem">|</span>
@@ -399,6 +437,7 @@ export default function MapView({
   </p>
   <p style="font-size:0.72rem;color:#888;margin:0 0 6px">${posto.localidade}</p>
   ${combsHtml}
+  ${descontoBadge}
   <a href="${
     posto.lat && posto.lng
       ? `https://www.google.com/maps/dir/?api=1&destination=${posto.lat},${posto.lng}`
@@ -413,7 +452,7 @@ export default function MapView({
     Direções
   </a>
 </div>`,
-            { maxWidth: 260 }
+            { maxWidth: 280 }
           );
 
           pinsLayerRef.current.addLayer(marker);
@@ -429,7 +468,7 @@ export default function MapView({
     };
 
     tryAdd();
-  }, [postos, mostrarPins]);
+  }, [postos, mostrarPins, descontoCentimos, descontoMarcaId]);
 
   useEffect(() => {
     if (!mapRef.current) return;
