@@ -504,63 +504,73 @@ export default function FilterPanel({
 
         {/* ── Desconto toggle ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-          <button
-            type="button"
-            onClick={() => {
-              const next = !descontoAtivo;
-              setDescontoAtivo(next);
-              if (!next) {
-                setDescontoCentimos(null);
-                setDescontoMarcaId("");
-                onChange(vals({ descontoAtivo: false, descontoCentimos: null, descontoMarcaId: "" }));
-              } else {
-                onChange(vals({ descontoAtivo: true }));
-              }
-            }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              width: "100%",
-              minHeight: 32,
-              padding: "0.35rem 0.6rem",
-              borderRadius: "0.5rem",
-              fontSize: "0.72rem",
-              fontWeight: 600,
-              cursor: "pointer",
-              border: descontoAtivo
-                ? "1px solid var(--accent)"
-                : dark
-                ? "1px solid rgba(255,255,255,0.15)"
-                : "1px solid var(--border)",
-              background: descontoAtivo
-                ? dark
-                  ? "rgba(var(--accent-rgb, 34,197,94), 0.12)"
-                  : "rgba(22,163,74,0.07)"
-                : "transparent",
-              color: descontoAtivo ? "var(--accent)" : "var(--text)",
-              transition: "all 0.15s ease",
-            }}
-          >
-            <span>Tem cupão de desconto?</span>
-            <span
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 32 }}>
+            <span style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text)" }}>
+              Tem cupão de desconto?
+            </span>
+            {/* Toggle Não/Sim */}
+            <div
               style={{
-                fontSize: "0.65rem",
-                fontWeight: 700,
-                padding: "0.1rem 0.4rem",
-                borderRadius: "0.35rem",
-                background: descontoAtivo
-                  ? "var(--accent)"
-                  : dark
-                  ? "rgba(255,255,255,0.1)"
-                  : "rgba(0,0,0,0.07)",
-                color: descontoAtivo ? "#fff" : "var(--text-muted)",
-                transition: "all 0.15s ease",
+                display: "flex",
+                alignItems: "stretch",
+                width: "5.6rem",
+                height: 26,
+                borderRadius: "0.75rem",
+                overflow: "hidden",
+                border: "1px solid var(--border)",
+                flexShrink: 0,
               }}
             >
-              {descontoAtivo ? "Sim" : "Não"}
-            </span>
-          </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDescontoAtivo(false);
+                  setDescontoCentimos(null);
+                  setDescontoMarcaId("");
+                  onChange(vals({ descontoAtivo: false, descontoCentimos: null, descontoMarcaId: "" }));
+                }}
+                title="Não tenho cupão"
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "0.62rem",
+                  fontWeight: 700,
+                  background: !descontoAtivo ? "#ef4444" : "transparent",
+                  color: !descontoAtivo ? "#fff" : "var(--text-muted)",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                Não
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDescontoAtivo(true);
+                  onChange(vals({ descontoAtivo: true }));
+                }}
+                title="Tenho cupão de desconto"
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "0.62rem",
+                  fontWeight: 700,
+                  background: descontoAtivo ? "#22c55e" : "transparent",
+                  color: descontoAtivo ? "#fff" : "var(--text-muted)",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                Sim
+              </button>
+            </div>
+          </div>
 
           {descontoAtivo && (
             <div
