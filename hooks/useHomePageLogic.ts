@@ -24,7 +24,6 @@ import {
 
 function dedupePostos(list: Posto[]): Posto[] {
   const seen = new Set<string>();
-
   return list.filter((p) => {
     const key = String(p.id);
     if (seen.has(key)) return false;
@@ -43,7 +42,7 @@ type UrlSnapshot = {
   radiusKm: 5 | 10 | 20 | null;
   lat: number | null;
   lng: number | null;
-  radiusMarcaId: string;
+  radiusMarcaIds: string[];
 };
 
 const VALID_SORTS: CombustivelOrdenacao[] = [
@@ -62,14 +61,24 @@ export function useHomePageLogic() {
   const [activeRadiusKm, setActiveRadiusKm] = useState<5 | 10 | 20 | null>(null);
 
   const [radiusBasePostos, setRadiusBasePostos] = useState<Posto[]>([]);
-  const [radiusMarcaId, setRadiusMarcaId] = useState("");
+  const [radiusMarcaIds, setRadiusMarcaIds] = useState<string[]>([]);
+
+  // ── desconto radius ──
+  const [radiusDescontoAtivo, setRadiusDescontoAtivo] = useState(false);
+  const [radiusDescontoCentimos, setRadiusDescontoCentimos] = useState<number | null>(null);
+  const [radiusDescontoMarcaId, setRadiusDescontoMarcaId] = useState("");
+
+  // ── desconto filterpanel ──
+  const [filterDescontoAtivo, setFilterDescontoAtivo] = useState(false);
+  const [filterDescontoCentimos, setFilterDescontoCentimos] = useState<number | null>(null);
+  const [filterDescontoMarcaId, setFilterDescontoMarcaId] = useState("");
 
   const [error, setError] = useState("");
   const [fuelId, setFuelId] = useState("3201");
   const [distritoAtivo, setDistritoAtivo] = useState("");
   const [municipioAtivo, setMunicipioAtivo] = useState("");
-const [sortOrdenacao, setSortOrdenacao] = useState<SortOrdenacao>("preco_asc");
-const [ordenacao, setOrdenacao] = useState<CombustivelOrdenacao>("gasolina_asc");
+  const [sortOrdenacao, setSortOrdenacao] = useState<SortOrdenacao>("preco_asc");
+  const [ordenacao, setOrdenacao] = useState<CombustivelOrdenacao>("gasolina_asc");
 
   const [mapaOpen, setMapaOpen] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
@@ -81,7 +90,7 @@ const [ordenacao, setOrdenacao] = useState<CombustivelOrdenacao>("gasolina_asc")
   const [urlReady, setUrlReady] = useState(false);
 
   const calcBtnRef = useRef<HTMLButtonElement | null>(null);
-  const calcPopoverRef = useRef<HTMLDivElement | null>(null);
+  const calcPopoverRef = useRef<HTMLDivide | null>(null);
 
   const mapFlyRefDesktop = useRef<MapFlyRefType | null>(null);
   const mapFlyRefMobile = useRef<MapFlyRefType | null>(null);
@@ -97,6 +106,9 @@ const [ordenacao, setOrdenacao] = useState<CombustivelOrdenacao>("gasolina_asc")
     idMunicipio: "",
     marcaIds: [],
     search: "",
+    descontoAtivo: false,
+    descontoCentimos: null,
+    descontoMarcaId: "",
   });
 
   useEffect(() => {
@@ -108,10 +120,8 @@ const [ordenacao, setOrdenacao] = useState<CombustivelOrdenacao>("gasolina_asc")
 
   const updateCalcPosition = useCallback(() => {
     if (!calcBtnRef.current) return;
-
     const r = calcBtnRef.current.getBoundingClientRect();
     const width = Math.min(340, window.innerWidth - 24);
-
     setCalcAnchor({
       top: r.bottom + 8,
       left: Math.min(
@@ -123,23 +133,16 @@ const [ordenacao, setOrdenacao] = useState<CombustivelOrdenacao>("gasolina_asc")
 
   useEffect(() => {
     if (!calcOpen || isMobileView) return;
-
     updateCalcPosition();
-
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
       const clickedBtn = calcBtnRef.current?.contains(target);
       const clickedPopover = calcPopoverRef.current?.contains(target);
-
-      if (!clickedBtn && !clickedPopover) {
-        setCalcOpen(false);
-      }
+      if (!clickedBtn && !clickedPopover) setCalcOpen(false);
     };
-
     window.addEventListener("resize", updateCalcPosition);
     window.addEventListener("scroll", updateCalcPosition, true);
     document.addEventListener("mousedown", handleClickOutside);
-
     return () => {
       window.removeEventListener("resize", updateCalcPosition);
       window.removeEventListener("scroll", updateCalcPosition, true);
@@ -158,69 +161,42 @@ const [ordenacao, setOrdenacao] = useState<CombustivelOrdenacao>("gasolina_asc")
       radiusKm: activeRadiusKm,
       lat: userLocation?.lat ?? null,
       lng: userLocation?.lng ?? null,
-      radiusMarcaId,
+      radiusMarcaIds,
       ...overrides,
     }),
-    [fuelId, ordenacao, activeRadiusKm, userLocation, radiusMarcaId]
+    [fuelId, ordenacao, activeRadiusKm, userLocation, radiusMarcaIds]
   );
 
-const syncUrl = useCallback((snap: UrlSnapshot) => {
-  if (typeof window === "undefined") return;
-
-  const params = new URLSearchParams();
-
-  if (snap.fuelId && snap.fuelId !== "3201") {
-    params.set("fuel", snap.fuelId);
-  }
-
-  if (snap.idDistrito) {
-    params.set("d", snap.idDistrito);
-  }
-
-  if (snap.idMunicipio) {
-    params.set("m", snap.idMunicipio);
-  }
-
-  if (snap.marcaIds.length > 0) {
-    params.set("brands", snap.marcaIds.join(","));
-  }
-
-  if (snap.search) {
-    params.set("q", snap.search);
-  }
-
-  if (snap.ordenacao !== "gasolina_asc") {
-    params.set("sort", snap.ordenacao);
-  }
-
-  if (snap.radiusKm !== null && snap.lat !== null && snap.lng !== null) {
-    params.set("r", String(snap.radiusKm));
-    params.set("lat", String(snap.lat));
-    params.set("lng", String(snap.lng));
-
-    if (snap.radiusMarcaId) {
-      params.set("rb", snap.radiusMarcaId);
+  const syncUrl = useCallback((snap: UrlSnapshot) => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams();
+    if (snap.fuelId && snap.fuelId !== "3201") params.set("fuel", snap.fuelId);
+    if (snap.idDistrito) params.set("d", snap.idDistrito);
+    if (snap.idMunicipio) params.set("m", snap.idMunicipio);
+    if (snap.marcaIds.length > 0) params.set("brands", snap.marcaIds.join(","));
+    if (snap.search) params.set("q", snap.search);
+    if (snap.ordenacao !== "gasolina_asc") params.set("sort", snap.ordenacao);
+    if (snap.radiusKm !== null && snap.lat !== null && snap.lng !== null) {
+      params.set("r", String(snap.radiusKm));
+      params.set("lat", String(snap.lat));
+      params.set("lng", String(snap.lng));
+      if (snap.radiusMarcaIds.length > 0) params.set("rb", snap.radiusMarcaIds.join(","));
     }
-  }
-
-  const nextQs = params.toString();
-  const nextUrl = nextQs
-    ? `${window.location.pathname}?${nextQs}`
-    : window.location.pathname;
-
-  const currentUrl = `${window.location.pathname}${window.location.search}`;
-
-  if (nextUrl !== currentUrl) {
-    window.history.replaceState(null, "", nextUrl);
-  }
-}, []);
+    const nextQs = params.toString();
+    const nextUrl = nextQs ? `${window.location.pathname}?${nextQs}` : window.location.pathname;
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    if (nextUrl !== currentUrl) window.history.replaceState(null, "", nextUrl);
+  }, []);
 
   const clearRadiusSearchState = useCallback(() => {
     setActiveRadiusKm(null);
     setUserLocation(null);
     setGeoError("");
-    setRadiusMarcaId("");
+    setRadiusMarcaIds([]);
     setRadiusBasePostos([]);
+    setRadiusDescontoAtivo(false);
+    setRadiusDescontoCentimos(null);
+    setRadiusDescontoMarcaId("");
   }, []);
 
   const resetMapsToPortugal = useCallback(() => {
@@ -242,40 +218,30 @@ const syncUrl = useCallback((snap: UrlSnapshot) => {
 
   const fetchPostos = useCallback(async (f: FilterValues) => {
     const safeF = sanitizeFilters(f);
-
     const temDistrito = !!safeF.idDistrito;
-    const temMunicipio = !!safeF.idMunicipio;
     const temMarca = safeF.marcaIds.length > 0;
     const temSearch = !!safeF.search;
-
-	const podeSearch = temMarca || temDistrito || temSearch;
-
+    const podeSearch = temMarca || temDistrito || temSearch;
     if (!podeSearch) {
       setError("");
       setPostos([]);
       return;
     }
-
     setLoading(true);
     setError("");
-
     try {
       const params = new URLSearchParams();
       params.set("fuelId", safeF.fuelId);
-
       if (safeF.idDistrito) params.set("idDistrito", safeF.idDistrito);
       if (safeF.idMunicipio) params.set("idMunicipios", safeF.idMunicipio);
       if (safeF.search) params.set("search", safeF.search);
-
       const res = await fetch(`/api/combustivel?${params.toString()}`);
       const json = await res.json();
-
       if (!res.ok || !json.ok) {
         const msg =
           typeof json?.error === "string" && json.error.trim()
             ? json.error
             : "Erro ao obter postos.";
-
         setError(
           msg.toLowerCase().includes("nenhum posto encontrado")
             ? "Não existem postos para os filtros selecionados."
@@ -284,35 +250,28 @@ const syncUrl = useCallback((snap: UrlSnapshot) => {
         setPostos([]);
         return;
       }
-
       let filtered = (json.data as Posto[]).filter((p) => {
         if (p.preco !== null && p.preco <= 0) return false;
         return true;
       });
-
       if (safeF.marcaIds.length > 0) {
         const marcasSelecionadas = new Set(
           ALLOWED_MARCAS
             .filter((m) => safeF.marcaIds.includes(String(m.id)))
             .map((m) => normText(m.nome))
         );
-
         filtered = filtered.filter((p) => marcasSelecionadas.has(normText(p.marca)));
       }
-
       filtered = dedupePostos(filtered);
-
       if (filtered.length === 0) {
         setError("Não existem postos para os filtros selecionados.");
         setPostos([]);
         return;
       }
-
       setPostos(filtered);
       setError("");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-
       setError(
         msg.toLowerCase().includes("nenhum posto encontrado")
           ? "Não existem postos para os filtros selecionados."
@@ -330,22 +289,20 @@ const syncUrl = useCallback((snap: UrlSnapshot) => {
       lat,
       lng,
       radiusKm,
-      preserveMarcaId = false,
+      preserveMarcaIds = false,
     }: {
       fuelIdArg: string;
       lat: number;
       lng: number;
       radiusKm: 5 | 10 | 20;
-      preserveMarcaId?: boolean;
+      preserveMarcaIds?: boolean;
     }) => {
       setGeoLoading(true);
       setLoading(true);
       setGeoError("");
       setError("");
       setRadiusBasePostos([]);
-      if (!preserveMarcaId) {
-        setRadiusMarcaId("");
-      }
+      if (!preserveMarcaIds) setRadiusMarcaIds([]);
 
       filtersRef.current = {
         fuelId: fuelIdArg,
@@ -353,6 +310,9 @@ const syncUrl = useCallback((snap: UrlSnapshot) => {
         idMunicipio: "",
         marcaIds: [],
         search: "",
+        descontoAtivo: false,
+        descontoCentimos: null,
+        descontoMarcaId: "",
       };
 
       setFuelId(fuelIdArg);
@@ -366,10 +326,8 @@ const syncUrl = useCallback((snap: UrlSnapshot) => {
         const params = new URLSearchParams();
         params.set("fuelId", fuelIdArg);
         params.set("bbox", makeBBoxFromRadius(lat, lng, radiusKm));
-
         const res = await fetch(`/api/combustivel?${params.toString()}`);
         const json = await res.json();
-
         if (!res.ok || !json.ok) {
           const msg =
             typeof json?.error === "string" && json.error.trim()
@@ -377,28 +335,20 @@ const syncUrl = useCallback((snap: UrlSnapshot) => {
               : "Erro ao obter postos.";
           throw new Error(msg);
         }
-
         let filtered = (json.data as Posto[]).filter((p) => {
           if (p.preco !== null && p.preco <= 0) return false;
           if (!isValidPortugalLikeCoord(p.lat, p.lng)) return false;
-
           return haversineKm(lat, lng, p.lat as number, p.lng as number) <= radiusKm;
         });
-
         filtered = dedupePostos(filtered);
-
         if (filtered.length === 0) {
           setRadiusBasePostos([]);
           setPostos([]);
           setError(`Não existem postos num raio de ${radiusKm} km.`);
           return;
         }
-
         ignoreMapClicksRef.current = true;
-        setTimeout(() => {
-          ignoreMapClicksRef.current = false;
-        }, 1500);
-
+        setTimeout(() => { ignoreMapClicksRef.current = false; }, 1500);
         setRadiusBasePostos(filtered);
         setPostos(filtered);
         setError("");
@@ -408,9 +358,7 @@ const syncUrl = useCallback((snap: UrlSnapshot) => {
         setError(msg);
         setPostos([]);
         setRadiusBasePostos([]);
-        if (!preserveMarcaId) {
-          setRadiusMarcaId("");
-        }
+        if (!preserveMarcaIds) setRadiusMarcaIds([]);
         setHasSearched(false);
         setUserLocation(null);
         setActiveRadiusKm(null);
@@ -422,71 +370,67 @@ const syncUrl = useCallback((snap: UrlSnapshot) => {
     []
   );
 
-useEffect(() => {
-  if (urlReady || typeof window === "undefined") return;
+  useEffect(() => {
+    if (urlReady || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const fuelFromUrl = params.get("fuel") || "3201";
+    const distritoFromUrl = params.get("d") || "";
+    const municipiosFromUrl = params.get("m") || "";
+    const marcaIdsFromUrl = (params.get("brands") || "")
+      .split(",").map((x) => x.trim()).filter(Boolean);
+    const searchFromUrl = params.get("q") || "";
+    const sortCandidate = params.get("sort");
+    const sortFromUrl: CombustivelOrdenacao =
+      sortCandidate && VALID_SORTS.includes(sortCandidate as CombustivelOrdenacao)
+        ? (sortCandidate as CombustivelOrdenacao)
+        : "gasolina_asc";
+    const radiusParam = params.get("r");
+    const radiusKm =
+      radiusParam === "5" || radiusParam === "10" || radiusParam === "20"
+        ? (Number(radiusParam) as 5 | 10 | 20)
+        : null;
+    const latParam = params.get("lat");
+    const lngParam = params.get("lng");
+    const lat = latParam ? Number(latParam) : NaN;
+    const lng = lngParam ? Number(lngParam) : NaN;
+    const radiusMarcaIdsFromUrl = (params.get("rb") || "")
+      .split(",").map((x) => x.trim()).filter(Boolean);
 
-  const params = new URLSearchParams(window.location.search);
-
-  const fuelFromUrl = params.get("fuel") || "3201";
-  const distritoFromUrl = params.get("d") || "";
-  const municipiosFromUrl = params.get("m") || "";
-  const marcaIdsFromUrl = (params.get("brands") || "")
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean);
-
-  const searchFromUrl = params.get("q") || "";
-  const sortCandidate = params.get("sort");
-  const sortFromUrl: CombustivelOrdenacao =
-    sortCandidate && VALID_SORTS.includes(sortCandidate as CombustivelOrdenacao)
-      ? (sortCandidate as CombustivelOrdenacao)
-      : "gasolina_asc";
-
-  const radiusParam = params.get("r");
-  const radiusKm =
-    radiusParam === "5" || radiusParam === "10" || radiusParam === "20"
-      ? (Number(radiusParam) as 5 | 10 | 20)
-      : null;
-
-  const latParam = params.get("lat");
-  const lngParam = params.get("lng");
-  const lat = latParam ? Number(latParam) : NaN;
-  const lng = lngParam ? Number(lngParam) : NaN;
-
-  const radiusMarcaFromUrl = params.get("rb") || "";
-
-  const next: FilterValues = sanitizeFilters({
-    fuelId: fuelFromUrl,
-    idDistrito: distritoFromUrl,
-    idMunicipio: municipiosFromUrl,
-    marcaIds: marcaIdsFromUrl,
-    search: searchFromUrl,
-  });
-
-  filtersRef.current = next;
-  setFuelId(fuelFromUrl);
-  setDistritoAtivo(distritoFromUrl);
-  setMunicipioAtivo(getPrimaryMunicipioId(municipiosFromUrl));
-  setOrdenacao(sortFromUrl);
-  setRadiusMarcaId(radiusMarcaFromUrl);
-  setUrlReady(true);
-
-  if (radiusKm && Number.isFinite(lat) && Number.isFinite(lng)) {
-    void fetchPostosBySharedRadius({
-      fuelIdArg: fuelFromUrl,
-      lat,
-      lng,
-      radiusKm,
-      preserveMarcaId: true,
+    const next: FilterValues = sanitizeFilters({
+      fuelId: fuelFromUrl,
+      idDistrito: distritoFromUrl,
+      idMunicipio: municipiosFromUrl,
+      marcaIds: marcaIdsFromUrl,
+      search: searchFromUrl,
+      descontoAtivo: false,
+      descontoCentimos: null,
+      descontoMarcaId: "",
     });
-    return;
-  }
 
-  if (distritoFromUrl || municipiosFromUrl || marcaIdsFromUrl.length > 0 || searchFromUrl) {
-    setHasSearched(true);
-    void fetchPostos(next);
-  }
-}, [urlReady, fetchPostos, fetchPostosBySharedRadius]);
+    filtersRef.current = next;
+    setFuelId(fuelFromUrl);
+    setDistritoAtivo(distritoFromUrl);
+    setMunicipioAtivo(getPrimaryMunicipioId(municipiosFromUrl));
+    setOrdenacao(sortFromUrl);
+    setRadiusMarcaIds(radiusMarcaIdsFromUrl);
+    setUrlReady(true);
+
+    if (radiusKm && Number.isFinite(lat) && Number.isFinite(lng)) {
+      void fetchPostosBySharedRadius({
+        fuelIdArg: fuelFromUrl,
+        lat,
+        lng,
+        radiusKm,
+        preserveMarcaIds: true,
+      });
+      return;
+    }
+
+    if (distritoFromUrl || municipiosFromUrl || marcaIdsFromUrl.length > 0 || searchFromUrl) {
+      setHasSearched(true);
+      void fetchPostos(next);
+    }
+  }, [urlReady, fetchPostos, fetchPostosBySharedRadius]);
 
   useEffect(() => {
     if (!urlReady) return;
@@ -499,26 +443,21 @@ useEffect(() => {
       setLoading(true);
       setGeoError("");
       setError("");
-      setRadiusMarcaId("");
+      setRadiusMarcaIds([]);
       setRadiusBasePostos([]);
-
       try {
         const loc = await getUserLocation();
-
-        syncUrl(
-          buildUrlSnapshot({
-            fuelId,
-            idDistrito: "",
-            idMunicipio: "",
-            marcaIds: [],
-            search: "",
-            radiusKm,
-            lat: loc.lat,
-            lng: loc.lng,
-            radiusMarcaId: "",
-          })
-        );
-
+        syncUrl(buildUrlSnapshot({
+          fuelId,
+          idDistrito: "",
+          idMunicipio: "",
+          marcaIds: [],
+          search: "",
+          radiusKm,
+          lat: loc.lat,
+          lng: loc.lng,
+          radiusMarcaIds: [],
+        }));
         await fetchPostosBySharedRadius({
           fuelIdArg: fuelId,
           lat: loc.lat,
@@ -531,20 +470,11 @@ useEffect(() => {
         setError(msg);
         setPostos([]);
         setRadiusBasePostos([]);
-        setRadiusMarcaId("");
+        setRadiusMarcaIds([]);
         setHasSearched(false);
         setUserLocation(null);
         setActiveRadiusKm(null);
-
-        syncUrl(
-          buildUrlSnapshot({
-            radiusKm: null,
-            lat: null,
-            lng: null,
-            radiusMarcaId: "",
-          })
-        );
-
+        syncUrl(buildUrlSnapshot({ radiusKm: null, lat: null, lng: null, radiusMarcaIds: [] }));
         setGeoLoading(false);
         setLoading(false);
       }
@@ -554,15 +484,16 @@ useEffect(() => {
 
   const handleReset = useCallback(() => {
     clearRadiusSearchState();
-
     filtersRef.current = {
       fuelId: "3201",
       idDistrito: "",
       idMunicipio: "",
       marcaIds: [],
       search: "",
+      descontoAtivo: false,
+      descontoCentimos: null,
+      descontoMarcaId: "",
     };
-
     setPostos([]);
     setError("");
     setDistritoAtivo("");
@@ -570,8 +501,10 @@ useEffect(() => {
     setFuelId("3201");
     setOrdenacao("gasolina_asc");
     setHasSearched(false);
+    setFilterDescontoAtivo(false);
+    setFilterDescontoCentimos(null);
+    setFilterDescontoMarcaId("");
     resetMapsToPortugal();
-
     syncUrl({
       fuelId: "3201",
       idDistrito: "",
@@ -582,41 +515,34 @@ useEffect(() => {
       radiusKm: null,
       lat: null,
       lng: null,
-      radiusMarcaId: "",
+      radiusMarcaIds: [],
     });
   }, [clearRadiusSearchState, resetMapsToPortugal, syncUrl]);
 
   const handleDistritoClick = useCallback(
     (_nome: string, id?: string) => {
       if (ignoreMapClicksRef.current) return;
-
       clearRadiusSearchState();
-
       const newF: FilterValues = sanitizeFilters({
         ...filtersRef.current,
         fuelId,
         idDistrito: id ?? "",
         idMunicipio: "",
       });
-
       filtersRef.current = newF;
       setDistritoAtivo(id ?? "");
       setMunicipioAtivo("");
-
-      syncUrl(
-        buildUrlSnapshot({
-          fuelId,
-          idDistrito: id ?? "",
-          idMunicipio: "",
-          marcaIds: newF.marcaIds,
-          search: newF.search,
-          radiusKm: null,
-          lat: null,
-          lng: null,
-          radiusMarcaId: "",
-        })
-      );
-
+      syncUrl(buildUrlSnapshot({
+        fuelId,
+        idDistrito: id ?? "",
+        idMunicipio: "",
+        marcaIds: newF.marcaIds,
+        search: newF.search,
+        radiusKm: null,
+        lat: null,
+        lng: null,
+        radiusMarcaIds: [],
+      }));
       if (newF.marcaIds.length > 0) {
         setHasSearched(true);
         fetchPostos(newF);
@@ -631,54 +557,43 @@ useEffect(() => {
   const handleConcelhoClick = useCallback(
     async (distritoId: string, concelhoNome: string) => {
       if (ignoreMapClicksRef.current) return;
-
       clearRadiusSearchState();
-
       let concelhoId = "";
-
       try {
         const lista = await fetchMunicipiosLocal(distritoId);
         const target = normText(concelhoNome);
-
         const found =
           lista.find((m) => normText(m.Descritivo) === target) ||
           lista.find((m) => normText(m.Descritivo).startsWith(target)) ||
           lista.find((m) => target.startsWith(normText(m.Descritivo))) ||
           lista.find((m) => normText(m.Descritivo).includes(target)) ||
           lista.find((m) => target.includes(normText(m.Descritivo)));
-
         if (found) concelhoId = String(found.Id);
         if (!concelhoId) return;
       } catch {
         return;
       }
-
       const novoFiltro: FilterValues = sanitizeFilters({
         ...filtersRef.current,
         fuelId,
         idDistrito: distritoId,
         idMunicipio: concelhoId,
       });
-
       filtersRef.current = novoFiltro;
       setDistritoAtivo(distritoId);
       setMunicipioAtivo(concelhoId);
       setHasSearched(true);
-
-      syncUrl(
-        buildUrlSnapshot({
-          fuelId,
-          idDistrito: distritoId,
-          idMunicipio: concelhoId,
-          marcaIds: novoFiltro.marcaIds,
-          search: novoFiltro.search,
-          radiusKm: null,
-          lat: null,
-          lng: null,
-          radiusMarcaId: "",
-        })
-      );
-
+      syncUrl(buildUrlSnapshot({
+        fuelId,
+        idDistrito: distritoId,
+        idMunicipio: concelhoId,
+        marcaIds: novoFiltro.marcaIds,
+        search: novoFiltro.search,
+        radiusKm: null,
+        lat: null,
+        lng: null,
+        radiusMarcaIds: [],
+      }));
       fetchPostos(novoFiltro);
     },
     [clearRadiusSearchState, fetchPostos, fuelId, syncUrl, buildUrlSnapshot]
@@ -687,44 +602,38 @@ useEffect(() => {
   const handleFilterChange = useCallback(
     (f: FilterValues) => {
       clearRadiusSearchState();
-
       const next = sanitizeFilters(f);
       const distritoMudou = next.idDistrito !== filtersRef.current.idDistrito;
       const concelhoMudou = next.idMunicipio !== filtersRef.current.idMunicipio;
       const primaryMunicipio = getPrimaryMunicipioId(next.idMunicipio);
-
       filtersRef.current = next;
       setFuelId(next.fuelId);
       setDistritoAtivo(next.idDistrito);
       setMunicipioAtivo(primaryMunicipio);
-
-      syncUrl(
-        buildUrlSnapshot({
-          fuelId: next.fuelId,
-          idDistrito: next.idDistrito,
-          idMunicipio: next.idMunicipio,
-          marcaIds: next.marcaIds,
-          search: next.search,
-          radiusKm: null,
-          lat: null,
-          lng: null,
-          radiusMarcaId: "",
-        })
-      );
-
+      // sync desconto do filterpanel
+      setFilterDescontoAtivo(next.descontoAtivo ?? false);
+      setFilterDescontoCentimos(next.descontoCentimos ?? null);
+      setFilterDescontoMarcaId(next.descontoMarcaId ?? "");
+      syncUrl(buildUrlSnapshot({
+        fuelId: next.fuelId,
+        idDistrito: next.idDistrito,
+        idMunicipio: next.idMunicipio,
+        marcaIds: next.marcaIds,
+        search: next.search,
+        radiusKm: null,
+        lat: null,
+        lng: null,
+        radiusMarcaIds: [],
+      }));
       if (!next.idDistrito && !next.idMunicipio && next.marcaIds.length === 0 && !next.search) {
         setHasSearched(false);
         setPostos([]);
         setError("");
         resetMapsToPortugal();
       }
-
       if (concelhoMudou && primaryMunicipio && next.idDistrito) {
         ignoreMapClicksRef.current = true;
-        setTimeout(() => {
-          ignoreMapClicksRef.current = false;
-        }, 2000);
-
+        setTimeout(() => { ignoreMapClicksRef.current = false; }, 2000);
         fetchMunicipiosLocal(next.idDistrito)
           .then((lista) => {
             const m = lista.find((x) => String(x.Id) === primaryMunicipio);
@@ -733,9 +642,7 @@ useEffect(() => {
           .catch(() => {});
       } else if (distritoMudou && next.idDistrito) {
         ignoreMapClicksRef.current = true;
-        setTimeout(() => {
-          ignoreMapClicksRef.current = false;
-        }, 2000);
+        setTimeout(() => { ignoreMapClicksRef.current = false; }, 2000);
         flyToDistrito(next.idDistrito);
       }
     },
@@ -745,35 +652,29 @@ useEffect(() => {
   const handleSearch = useCallback(
     (f: FilterValues) => {
       clearRadiusSearchState();
-
       const next = sanitizeFilters(f);
       const primaryMunicipio = getPrimaryMunicipioId(next.idMunicipio);
-
       filtersRef.current = next;
       setFuelId(next.fuelId);
       setDistritoAtivo(next.idDistrito);
       setMunicipioAtivo(primaryMunicipio);
       setHasSearched(true);
-
-      syncUrl(
-        buildUrlSnapshot({
-          fuelId: next.fuelId,
-          idDistrito: next.idDistrito,
-          idMunicipio: next.idMunicipio,
-          marcaIds: next.marcaIds,
-          search: next.search,
-          radiusKm: null,
-          lat: null,
-          lng: null,
-          radiusMarcaId: "",
-        })
-      );
-
+      setFilterDescontoAtivo(next.descontoAtivo ?? false);
+      setFilterDescontoCentimos(next.descontoCentimos ?? null);
+      setFilterDescontoMarcaId(next.descontoMarcaId ?? "");
+      syncUrl(buildUrlSnapshot({
+        fuelId: next.fuelId,
+        idDistrito: next.idDistrito,
+        idMunicipio: next.idMunicipio,
+        marcaIds: next.marcaIds,
+        search: next.search,
+        radiusKm: null,
+        lat: null,
+        lng: null,
+        radiusMarcaIds: [],
+      }));
       ignoreMapClicksRef.current = true;
-      setTimeout(() => {
-        ignoreMapClicksRef.current = false;
-      }, 1500);
-
+      setTimeout(() => { ignoreMapClicksRef.current = false; }, 1500);
       fetchPostos(next);
     },
     [clearRadiusSearchState, fetchPostos, syncUrl, buildUrlSnapshot]
@@ -786,47 +687,47 @@ useEffect(() => {
   }, []);
 
   const handleRadiusMarcaChange = useCallback(
-    (marcaId: string) => {
-      setRadiusMarcaId(marcaId);
-
-      syncUrl(
-        buildUrlSnapshot({
-          radiusMarcaId: marcaId,
-        })
-      );
+    (ids: string[]) => {
+      setRadiusMarcaIds(ids);
+      syncUrl(buildUrlSnapshot({ radiusMarcaIds: ids }));
     },
     [syncUrl, buildUrlSnapshot]
+  );
+
+  const handleRadiusDescontoChange = useCallback(
+    (ativo: boolean, centimos: number | null, marcaId: string) => {
+      setRadiusDescontoAtivo(ativo);
+      setRadiusDescontoCentimos(centimos);
+      setRadiusDescontoMarcaId(marcaId);
+    },
+    []
   );
 
   const hasMarca = filtersRef.current.marcaIds.length > 0;
   const hasSearch = filtersRef.current.search !== "";
   const hasMunicipioSelecionado = filtersRef.current.idMunicipio !== "";
   const hasRadiusSearch = activeRadiusKm !== null && userLocation !== null;
-
   const showRadiusMarcaFilter = hasRadiusSearch && radiusBasePostos.length > 0;
 
   const availableRadiusMarcas = useMemo(() => {
     if (!showRadiusMarcaFilter) return [];
-
     return ALLOWED_MARCAS.filter((marca) =>
       radiusBasePostos.some((p) => normText(p.marca) === normText(marca.nome))
     );
   }, [showRadiusMarcaFilter, radiusBasePostos]);
 
-  const selectedRadiusMarca = useMemo(
-    () => ALLOWED_MARCAS.find((m) => String(m.id) === radiusMarcaId) ?? null,
-    [radiusMarcaId]
+  const selectedRadiusMarcas = useMemo(
+    () => ALLOWED_MARCAS.filter((m) => radiusMarcaIds.includes(String(m.id))),
+    [radiusMarcaIds]
   );
 
   const postosBaseFiltrados = useMemo(() => {
     if (!hasRadiusSearch) return postos;
-
     const base = radiusBasePostos.length > 0 ? radiusBasePostos : postos;
-
-    if (!selectedRadiusMarca) return base;
-
-    return base.filter((p) => normText(p.marca) === normText(selectedRadiusMarca.nome));
-  }, [hasRadiusSearch, radiusBasePostos, postos, selectedRadiusMarca]);
+    if (selectedRadiusMarcas.length === 0) return base;
+    const nomes = new Set(selectedRadiusMarcas.map((m) => normText(m.nome)));
+    return base.filter((p) => nomes.has(normText(p.marca)));
+  }, [hasRadiusSearch, radiusBasePostos, postos, selectedRadiusMarcas]);
 
   const tipoAtivo = getTipoAtivo(ordenacao);
 
@@ -838,51 +739,60 @@ useEffect(() => {
   const precosVisiveis = postosVisiveis
     .map((p) => {
       if (!tipoAtivo) return p.preco;
-      const pr = getPrecoCombustivel(p, tipoAtivo);
-      return pr == null ? null : pr;
+      return getPrecoCombustivel(p, tipoAtivo) ?? null;
     })
     .filter((x): x is number => x !== null);
 
   const minP = precosVisiveis.length ? Math.min(...precosVisiveis) : 0;
 
   const cheapestPrice: number | null = (() => {
-    if (!tipoAtivo) {
-      const p = postosVisiveis.find((p) => p.preco === minP);
-      return p?.preco ?? null;
-    }
-
+    if (!tipoAtivo) return postosVisiveis.find((p) => p.preco === minP)?.preco ?? null;
     const p = postosVisiveis.find((p) => getPrecoCombustivel(p, tipoAtivo) === minP);
-    if (!p) return null;
-
-    return minP;
+    return p ? minP : null;
   })();
 
-const sortedPostos = useMemo(() => {
-  const unique = dedupePostos(postosVisiveis);
+  // ── desconto efectivo (radius tem prioridade se estiver activo) ──
+  const descontoAtivo = hasRadiusSearch ? radiusDescontoAtivo : filterDescontoAtivo;
+  const descontoCentimos = hasRadiusSearch ? radiusDescontoCentimos : filterDescontoCentimos;
+  const descontoMarcaIdEfetivo = hasRadiusSearch ? radiusDescontoMarcaId : filterDescontoMarcaId;
+  const descontoMarcaNome =
+    ALLOWED_MARCAS.find((m) => String(m.id) === descontoMarcaIdEfetivo)?.nome ?? "";
 
-  return [...unique].sort((a, b) => {
-    if (sortOrdenacao === "distancia_asc" || sortOrdenacao === "distancia_desc") {
-      const uLat = userLocation?.lat;
-      const uLng = userLocation?.lng;
-      if (uLat == null || uLng == null) {
-        // fallback para preço asc
-        const pa = tipoAtivo ? getPrecoCombustivel(a, tipoAtivo) : a.preco;
-        const pb = tipoAtivo ? getPrecoCombustivel(b, tipoAtivo) : b.preco;
-        const diff = (pa ?? Infinity) - (pb ?? Infinity);
-        return sortOrdenacao === "distancia_desc" ? -diff : diff;
-      }
-      const dA = haversineKm(uLat, uLng, a.lat as number, a.lng as number);
-      const dB = haversineKm(uLat, uLng, b.lat as number, b.lng as number);
-      return sortOrdenacao === "distancia_asc" ? dA - dB : dB - dA;
+  // ── helper preço efectivo com desconto ──
+  function precoEfetivo(p: Posto): number {
+    const base = tipoAtivo ? getPrecoCombustivel(p, tipoAtivo) : p.preco;
+    if (base == null) return Infinity;
+    if (
+      descontoAtivo &&
+      descontoCentimos != null &&
+      descontoCentimos > 0 &&
+      !!descontoMarcaNome &&
+      normText(p.marca ?? "") === normText(descontoMarcaNome)
+    ) {
+      return Math.max(0, base - descontoCentimos / 100);
     }
+    return base;
+  }
 
-    // preco_asc / preco_desc
-    const pa = tipoAtivo ? getPrecoCombustivel(a, tipoAtivo) : a.preco;
-    const pb = tipoAtivo ? getPrecoCombustivel(b, tipoAtivo) : b.preco;
-    const diff = (pa ?? Infinity) - (pb ?? Infinity);
-    return sortOrdenacao === "preco_desc" ? -diff : diff;
-  });
-}, [postosVisiveis, tipoAtivo, sortOrdenacao, userLocation]);
+  const sortedPostos = useMemo(() => {
+    const unique = dedupePostos(postosVisiveis);
+    return [...unique].sort((a, b) => {
+      if (sortOrdenacao === "distancia_asc" || sortOrdenacao === "distancia_desc") {
+        const uLat = userLocation?.lat;
+        const uLng = userLocation?.lng;
+        if (uLat == null || uLng == null) {
+          const diff = precoEfetivo(a) - precoEfetivo(b);
+          return sortOrdenacao === "distancia_desc" ? -diff : diff;
+        }
+        const dA = haversineKm(uLat, uLng, a.lat as number, a.lng as number);
+        const dB = haversineKm(uLat, uLng, b.lat as number, b.lng as number);
+        return sortOrdenacao === "distancia_asc" ? dA - dB : dB - dA;
+      }
+      const diff = precoEfetivo(a) - precoEfetivo(b);
+      return sortOrdenacao === "preco_desc" ? -diff : diff;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postosVisiveis, tipoAtivo, sortOrdenacao, userLocation, descontoAtivo, descontoCentimos, descontoMarcaNome]);
 
   const hasQueryContext =
     distritoAtivo !== "" ||
@@ -891,9 +801,9 @@ const sortedPostos = useMemo(() => {
     hasSearch ||
     hasRadiusSearch;
 
-	const mostrarPins =
-	sortedPostos.length > 0 &&
-	(hasMunicipioSelecionado || hasMarca || hasRadiusSearch || (distritoAtivo !== "" && hasSearched));
+  const mostrarPins =
+    sortedPostos.length > 0 &&
+    (hasMunicipioSelecionado || hasMarca || hasRadiusSearch || (distritoAtivo !== "" && hasSearched));
 
   const mostrarPinsDistrito =
     distritoAtivo !== "" &&
@@ -903,44 +813,31 @@ const sortedPostos = useMemo(() => {
 
   useEffect(() => {
     if (!mapaOpen) return;
-
     const distrito = filtersRef.current.idDistrito;
     const municipiosIds = getMunicipiosIds(filtersRef.current.idMunicipio);
     let attempts = 0;
-
     const tryFly = () => {
       attempts++;
       mapInvalidateRefMobile.current?.();
-
       if (!mapFlyRefMobile.current) {
         if (attempts < 15) setTimeout(tryFly, 200);
         return;
       }
-
       if (municipiosIds.length > 1) {
-        if (!mostrarPins && distrito) {
-          mapFlyRefMobile.current.flyToDistrito(distrito);
-        }
+        if (!mostrarPins && distrito) mapFlyRefMobile.current.flyToDistrito(distrito);
         return;
       }
-
       if (municipiosIds.length === 1 && distrito) {
         fetchMunicipiosLocal(distrito)
           .then((lista) => {
             const m = lista.find((x) => String(x.Id) === municipiosIds[0]);
-            if (m) {
-              mapFlyRefMobile.current?.flyToConcelho(distrito, m.Descritivo);
-            }
+            if (m) mapFlyRefMobile.current?.flyToConcelho(distrito, m.Descritivo);
           })
           .catch(() => {});
         return;
       }
-
-      if (distrito) {
-        mapFlyRefMobile.current.flyToDistrito(distrito);
-      }
+      if (distrito) mapFlyRefMobile.current.flyToDistrito(distrito);
     };
-
     const t = setTimeout(tryFly, 150);
     return () => clearTimeout(t);
   }, [mapaOpen, mostrarPins]);
@@ -963,7 +860,7 @@ const sortedPostos = useMemo(() => {
     geoError,
     userLocation,
     activeRadiusKm,
-    radiusMarcaId,
+    radiusMarcaIds,
     availableRadiusMarcas,
     showRadiusMarcaFilter,
     error,
@@ -1008,7 +905,14 @@ const sortedPostos = useMemo(() => {
     mostrarPinsDistrito,
     busy,
     mapProps,
-	sortOrdenacao,
-	setSortOrdenacao,
+    sortOrdenacao,
+    setSortOrdenacao,
+    radiusDescontoAtivo,
+    radiusDescontoCentimos,
+    radiusDescontoMarcaId,
+    handleRadiusDescontoChange,
+    descontoAtivo,
+    descontoCentimos,
+    descontoMarcaNome,
   };
 }

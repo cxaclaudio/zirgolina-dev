@@ -90,10 +90,19 @@ export default function Home() {
     busy,
     mapProps,
     showRadiusMarcaFilter,
-    radiusMarcaId,
+    radiusMarcaIds,
     availableRadiusMarcas,
-	  sortOrdenacao,
-  setSortOrdenacao,
+    sortOrdenacao,
+    setSortOrdenacao,
+    // desconto radius (para LocationRadiusPanel)
+    radiusDescontoAtivo,
+    radiusDescontoCentimos,
+    radiusDescontoMarcaId,
+    handleRadiusDescontoChange,
+    // desconto calculado (para PostosListPanel)
+    descontoAtivo,
+    descontoCentimos,
+    descontoMarcaNome,
   } = useHomePageLogic();
 
   return (
@@ -129,12 +138,10 @@ export default function Home() {
         }}
         onToggleCalc={() => {
           setMapaOpen(false);
-
           if (isMobileView) {
             setCalcOpen(true);
             return;
           }
-
           if (!calcOpen) updateCalcPosition();
           setCalcOpen((v) => !v);
         }}
@@ -170,9 +177,13 @@ export default function Home() {
             activeRadiusKm={activeRadiusKm}
             onSearchByRadius={handleSearchByRadius}
             showRadiusMarcaFilter={showRadiusMarcaFilter}
-            radiusMarcaId={radiusMarcaId}
+            radiusMarcaIds={radiusMarcaIds}
             availableRadiusMarcas={availableRadiusMarcas}
             onRadiusMarcaChange={handleRadiusMarcaChange}
+            descontoAtivo={radiusDescontoAtivo}
+            descontoCentimos={radiusDescontoCentimos}
+            descontoMarcaId={radiusDescontoMarcaId}
+            onDescontoChange={handleRadiusDescontoChange}
           />
 
           <FilterPanel
@@ -204,12 +215,13 @@ export default function Home() {
           hasRadiusSearch={hasRadiusSearch}
           activeRadiusKm={activeRadiusKm}
           ordenacao={ordenacao}
-		    sortOrdenacao={sortOrdenacao}
-  setSortOrdenacao={setSortOrdenacao}
-          setOrdenacao={(value: string) =>
-            setOrdenacao(value as CombustivelOrdenacao)
-          }
+          sortOrdenacao={sortOrdenacao}
+          setSortOrdenacao={setSortOrdenacao}
+          setOrdenacao={(value: string) => setOrdenacao(value as CombustivelOrdenacao)}
           tipoAtivo={tipoAtivo}
+          descontoAtivo={descontoAtivo}
+          descontoCentimos={descontoCentimos}
+          descontoMarcaNome={descontoMarcaNome}
         />
 
         <div
@@ -230,6 +242,7 @@ export default function Home() {
         </div>
       </div>
 
+      {/* ── Mobile map overlay ── */}
       <div
         style={{
           position: "fixed",

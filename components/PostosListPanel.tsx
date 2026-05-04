@@ -29,6 +29,10 @@ type Props = {
   sortOrdenacao: SortOrdenacao;
   setSortOrdenacao: (value: SortOrdenacao) => void;
   tipoAtivo: TipoAtivo;
+  // desconto
+  descontoAtivo?: boolean;
+  descontoCentimos?: number | null;
+  descontoMarcaNome?: string;
 };
 
 const FILTER_BTNS = [
@@ -65,8 +69,11 @@ export default function PostosListPanel({
   sortOrdenacao,
   setSortOrdenacao,
   tipoAtivo,
+  descontoAtivo = false,
+  descontoCentimos = null,
+  descontoMarcaNome = "",
 }: Props) {
-  const [vistaDetalhada, setVistaDetalhada] = useState(true);
+  const [vistaDetalhada, setVistaDetalhada] = useState(false);
 
   const showControls = hasSearched && !busy && postosVisiveis.length > 0;
 
@@ -114,66 +121,69 @@ export default function PostosListPanel({
           </span>
         </div>
 
-{/* Card centro — toggle vista */}
-{showControls && (
-  <div
-    className="card"
-    style={{
-      padding: 0,              // ← sem padding, botões preenchem tudo
-      minWidth: "5.6rem",
-      display: "flex",
-      alignItems: "stretch",   // ← stretch para botões preencherem altura
-      flexShrink: 0,
-      gap: 0,                  // ← sem gap
-      alignSelf: "stretch",
-      borderRadius: "0.75rem",
-      overflow: "hidden",      // ← garante que os botões respeitam o radius do card
-    }}
-  >
-    <button
-      onClick={() => setVistaDetalhada(true)}
-      title="Vista detalhada"
-      style={{
-        flex: 1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        border: "none",
-        cursor: "pointer",
-        background: vistaDetalhada ? "var(--accent)" : "transparent",
-        color: vistaDetalhada ? "#fff" : "var(--text-muted)",
-        transition: "all 0.15s ease",
-      }}
-    >
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="18" height="5" rx="1" />
-        <rect x="3" y="10" width="18" height="5" rx="1" />
-        <rect x="3" y="17" width="18" height="5" rx="1" />
-      </svg>
-    </button>
-    <button
-      onClick={() => setVistaDetalhada(false)}
-      title="Vista resumida"
-      style={{
-        flex: 1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        border: "none",
-        cursor: "pointer",
-        background: !vistaDetalhada ? "var(--accent)" : "transparent",
-        color: !vistaDetalhada ? "#fff" : "var(--text-muted)",
-        transition: "all 0.15s ease",
-      }}
-    >
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="3" y1="6" x2="21" y2="6" />
-        <line x1="3" y1="12" x2="21" y2="12" />
-        <line x1="3" y1="18" x2="21" y2="18" />
-      </svg>
-    </button>
-  </div>
-)}
+        {/* Card centro — toggle vista */}
+        {showControls && (
+          <div
+            className="card"
+            style={{
+              padding: 0,
+              minWidth: "5.6rem",
+              display: "flex",
+              alignItems: "stretch",
+              flexShrink: 0,
+              gap: 0,
+              alignSelf: "stretch",
+              borderRadius: "0.75rem",
+              overflow: "hidden",
+            }}
+          >
+		    <button
+              onClick={() => setVistaDetalhada(false)}
+              title="Vista resumida"
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "none",
+                cursor: "pointer",
+                background: !vistaDetalhada ? "var(--accent)" : "transparent",
+                color: !vistaDetalhada ? "#fff" : "var(--text-muted)",
+                transition: "all 0.15s ease",
+              }}
+            >
+			              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+
+            </button>
+			
+			<button
+              onClick={() => setVistaDetalhada(true)}
+              title="Vista detalhada"
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "none",
+                cursor: "pointer",
+                background: vistaDetalhada ? "var(--accent)" : "transparent",
+                color: vistaDetalhada ? "#fff" : "var(--text-muted)",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="5" rx="1" />
+                <rect x="3" y="10" width="18" height="5" rx="1" />
+                <rect x="3" y="17" width="18" height="5" rx="1" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {/* Sort */}
         {showControls && (
           <div
@@ -353,11 +363,25 @@ export default function PostosListPanel({
 
       {/* ── Lista de postos ── */}
       {!busy && vistaDetalhada && sortedPostos.map((posto) => (
-        <PostoCard key={posto.id} posto={posto} tipoAtivo={tipoAtivo} />
+        <PostoCard
+          key={posto.id}
+          posto={posto}
+          tipoAtivo={tipoAtivo}
+          descontoAtivo={descontoAtivo}
+          descontoCentimos={descontoCentimos}
+          descontoMarcaNome={descontoMarcaNome}
+        />
       ))}
 
       {!busy && !vistaDetalhada && sortedPostos.map((posto) => (
-        <PostoCardCompact key={posto.id} posto={posto} tipoAtivo={tipoAtivo} />
+        <PostoCardCompact
+          key={posto.id}
+          posto={posto}
+          tipoAtivo={tipoAtivo}
+          descontoAtivo={descontoAtivo}
+          descontoCentimos={descontoCentimos}
+          descontoMarcaNome={descontoMarcaNome}
+        />
       ))}
 
       {/* ── Rodapé DGEG ── */}

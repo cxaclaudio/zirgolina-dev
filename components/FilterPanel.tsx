@@ -20,6 +20,9 @@ export interface FilterValues {
   idMunicipio: string;
   marcaIds: string[];
   search: string;
+  descontoAtivo: boolean;
+  descontoCentimos: number | null;
+  descontoMarcaId: string;
 }
 
 interface Props {
@@ -52,6 +55,11 @@ export default function FilterPanel({
   const [municipiosOpen, setMunicipiosOpen] = useState(false);
   const [marcasOpen, setMarcasOpen] = useState(false);
 
+  // Desconto state
+  const [descontoAtivo, setDescontoAtivo] = useState(false);
+  const [descontoCentimos, setDescontoCentimos] = useState<number | null>(null);
+  const [descontoMarcaId, setDescontoMarcaId] = useState("");
+
   const monoColor = dark ? "#ffffff" : "#000000";
 
   const municipiosBoxRef = useRef<HTMLDivElement | null>(null);
@@ -73,7 +81,6 @@ export default function FilterPanel({
 
   useEffect(() => {
     if (!municipioAtivo) return;
-
     setIdMunicipios((prev) => {
       if (prev.length === 1 && prev[0] === municipioAtivo) return prev;
       return [municipioAtivo];
@@ -93,9 +100,12 @@ export default function FilterPanel({
       idMunicipio: toCsv(idMunicipios),
       marcaIds,
       search: "",
+      descontoAtivo,
+      descontoCentimos,
+      descontoMarcaId,
       ...ov,
     }),
-    [currentFuelId, idDistrito, idMunicipios, marcaIds, toCsv]
+    [currentFuelId, idDistrito, idMunicipios, marcaIds, toCsv, descontoAtivo, descontoCentimos, descontoMarcaId]
   );
 
   useEffect(() => {
@@ -111,7 +121,6 @@ export default function FilterPanel({
       closeDropdowns();
       return;
     }
-
     fetch(`/api/municipios?id=${idDistrito}`)
       .then((r) => r.json())
       .then((d) => setMunicipios(d.data ?? []));
@@ -120,33 +129,17 @@ export default function FilterPanel({
   useEffect(() => {
     function handlePointerDown(e: MouseEvent | TouchEvent) {
       const target = e.target as Node;
-
-      const insideMunicipios =
-        municipiosBoxRef.current?.contains(target) ?? false;
-      const insideMarcas =
-        marcasBoxRef.current?.contains(target) ?? false;
-
-      if (!insideMunicipios) {
-        setMunicipiosOpen(false);
-      }
-
-      if (!insideMarcas) {
-        setMarcasOpen(false);
-      }
+      const insideMunicipios = municipiosBoxRef.current?.contains(target) ?? false;
+      const insideMarcas = marcasBoxRef.current?.contains(target) ?? false;
+      if (!insideMunicipios) setMunicipiosOpen(false);
+      if (!insideMarcas) setMarcasOpen(false);
     }
-
     function handleEscape(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        closeDropdowns();
-      }
+      if (e.key === "Escape") closeDropdowns();
     }
-
     document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("touchstart", handlePointerDown, {
-      passive: true,
-    });
+    document.addEventListener("touchstart", handlePointerDown, { passive: true });
     document.addEventListener("keydown", handleEscape);
-
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("touchstart", handlePointerDown);
@@ -165,7 +158,6 @@ export default function FilterPanel({
     const next = idMunicipios.includes(v)
       ? idMunicipios.filter((x) => x !== v)
       : [...idMunicipios, v];
-
     setIdMunicipios(next);
     onChange(vals({ idMunicipio: toCsv(next) }));
   }
@@ -174,7 +166,6 @@ export default function FilterPanel({
     const next = marcaIds.includes(v)
       ? marcaIds.filter((x) => x !== v)
       : [...marcaIds, v];
-
     setMarcaIds(next);
     onChange(vals({ marcaIds: next }));
   }
@@ -183,14 +174,19 @@ export default function FilterPanel({
     setIdDistrito("");
     setIdMunicipios([]);
     setMarcaIds([]);
+    setDescontoAtivo(false);
+    setDescontoCentimos(null);
+    setDescontoMarcaId("");
     closeDropdowns();
-
     onChange({
       fuelId: currentFuelId,
       idDistrito: "",
       idMunicipio: "",
       marcaIds: [],
       search: "",
+      descontoAtivo: false,
+      descontoCentimos: null,
+      descontoMarcaId: "",
     });
   }
 
@@ -223,8 +219,8 @@ export default function FilterPanel({
         top: 72,
         overflow: "visible",
         paddingBottom: "0.5rem",
-		minWidth: 0,
-		width: "100%",
+        minWidth: 0,
+        width: "100%",
       }}
     >
       <div
@@ -235,59 +231,57 @@ export default function FilterPanel({
           flexDirection: "column",
           gap: "0.45rem",
           overflow: "visible",
-		  minWidth: 0,
-		  width: "100%",
+          minWidth: 0,
+          width: "100%",
         }}
       >
         <p style={{ fontWeight: 700, fontSize: "0.82rem" }}>Filtros</p>
 
-<div>
-<label className="field-label" style={{ fontSize: "0.58rem" }}>Distrito</label>
-  <div style={{ position: "relative" }}>
-    <select
-      value={idDistrito}
-      onChange={(e) => handleDistritoChange(e.target.value)}
-      className="field-input"
-      style={{
-        minHeight: "32px",
-        padding: "0.35rem 2rem 0.35rem 0.75rem",
-        fontSize: "0.76rem",
-        appearance: "none",
-        WebkitAppearance: "none",
-        cursor: "pointer",
-        width: "100%",
-      }}
-    >
-      <option value="">Todos</option>
-      {distritos.map((d) => (
-        <option key={d.Id} value={String(d.Id)}>
-          {d.Descritivo}
-        </option>
-      ))}
-    </select>
-    <span
-      style={{
-        position: "absolute",
-        right: "0.75rem",
-        top: "50%",
-        transform: "translateY(-50%)",
-        fontSize: "0.7rem",
-        lineHeight: 1,
-        pointerEvents: "none",
-        color: "var(--text-muted)",
-      }}
-    >
-      ▾
-    </span>
-  </div>
-</div>
+        {/* ── Distrito ── */}
+        <div>
+          <label className="field-label" style={{ fontSize: "0.58rem" }}>Distrito</label>
+          <div style={{ position: "relative" }}>
+            <select
+              value={idDistrito}
+              onChange={(e) => handleDistritoChange(e.target.value)}
+              className="field-input"
+              style={{
+                minHeight: "32px",
+                padding: "0.35rem 2rem 0.35rem 0.75rem",
+                fontSize: "0.76rem",
+                appearance: "none",
+                WebkitAppearance: "none",
+                cursor: "pointer",
+                width: "100%",
+              }}
+            >
+              <option value="">Todos</option>
+              {distritos.map((d) => (
+                <option key={d.Id} value={String(d.Id)}>
+                  {d.Descritivo}
+                </option>
+              ))}
+            </select>
+            <span
+              style={{
+                position: "absolute",
+                right: "0.75rem",
+                top: "50%",
+                transform: "translateY(-50%)",
+                fontSize: "0.7rem",
+                lineHeight: 1,
+                pointerEvents: "none",
+                color: "var(--text-muted)",
+              }}
+            >
+              ▾
+            </span>
+          </div>
+        </div>
 
-        <div
-          ref={municipiosBoxRef}
-          style={{ position: "relative", overflow: "visible" }}
-        >
-<label className="field-label" style={{ fontSize: "0.58rem" }}>Concelhos</label>
-
+        {/* ── Concelhos ── */}
+        <div ref={municipiosBoxRef} style={{ position: "relative", overflow: "visible" }}>
+          <label className="field-label" style={{ fontSize: "0.58rem" }}>Concelhos</label>
           <button
             type="button"
             onClick={() => {
@@ -299,35 +293,34 @@ export default function FilterPanel({
             className="field-input"
             aria-expanded={municipiosOpen}
             aria-haspopup="listbox"
-			style={{
-			width: "100%",
-			minWidth: 0,
-			display: "flex",
-			alignItems: "flex-start",   
-			justifyContent: "space-between",
-			overflow: "hidden",
-			textAlign: "left",
-			cursor: idDistrito ? "pointer" : "not-allowed",
-			minHeight: "32px",           
-			padding: "0.35rem 0.75rem",
-			opacity: idDistrito ? 1 : 0.45,
-			gap: "0.5rem",
-			}}
+            style={{
+              width: "100%",
+              minWidth: 0,
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              overflow: "hidden",
+              textAlign: "left",
+              cursor: idDistrito ? "pointer" : "not-allowed",
+              minHeight: "32px",
+              padding: "0.35rem 0.75rem",
+              opacity: idDistrito ? 1 : 0.45,
+              gap: "0.5rem",
+            }}
           >
-			<span
-			title={municipiosLabel}
-			style={{
-				fontSize: "0.76rem",
-				flex: 1,
-				minWidth: 0,
-				overflow: "hidden",
-				textOverflow: "ellipsis",
-				whiteSpace: "nowrap",
-			}}
-			>
-			{municipiosLabel}
-			</span>
-
+            <span
+              title={municipiosLabel}
+              style={{
+                fontSize: "0.76rem",
+                flex: 1,
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {municipiosLabel}
+            </span>
             <span
               style={{
                 fontSize: "0.8rem",
@@ -364,7 +357,6 @@ export default function FilterPanel({
             >
               {municipios.map((m) => {
                 const checked = idMunicipios.includes(String(m.Id));
-
                 return (
                   <label
                     key={m.Id}
@@ -401,13 +393,9 @@ export default function FilterPanel({
           )}
         </div>
 
-        <div
-          ref={marcasBoxRef}
-          style={{ position: "relative", overflow: "visible" }}
-        >
-<label className="field-label" style={{ fontSize: "0.58rem" }}>Marcas</label>
-
-
+        {/* ── Marcas ── */}
+        <div ref={marcasBoxRef} style={{ position: "relative", overflow: "visible" }}>
+          <label className="field-label" style={{ fontSize: "0.58rem" }}>Marcas</label>
           <button
             type="button"
             onClick={() => {
@@ -429,20 +417,19 @@ export default function FilterPanel({
               gap: "0.5rem",
             }}
           >
-<span
-  title={marcasLabel}
-  style={{
-				fontSize: "0.76rem",
-				flex: 1,
-				minWidth: 0,
-				overflow: "hidden",
-				textOverflow: "ellipsis",
-				whiteSpace: "nowrap",
-  }}
->
-  {marcasLabel}
-</span>
-
+            <span
+              title={marcasLabel}
+              style={{
+                fontSize: "0.76rem",
+                flex: 1,
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {marcasLabel}
+            </span>
             <span
               style={{
                 fontSize: "0.8rem",
@@ -479,7 +466,6 @@ export default function FilterPanel({
             >
               {ALLOWED_MARCAS.map((m) => {
                 const checked = marcaIds.includes(String(m.id));
-
                 return (
                   <label
                     key={m.id}
@@ -516,42 +502,199 @@ export default function FilterPanel({
           )}
         </div>
 
+        {/* ── Desconto toggle ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+          <button
+            type="button"
+            onClick={() => {
+              const next = !descontoAtivo;
+              setDescontoAtivo(next);
+              if (!next) {
+                setDescontoCentimos(null);
+                setDescontoMarcaId("");
+                onChange(vals({ descontoAtivo: false, descontoCentimos: null, descontoMarcaId: "" }));
+              } else {
+                onChange(vals({ descontoAtivo: true }));
+              }
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              width: "100%",
+              minHeight: 32,
+              padding: "0.35rem 0.6rem",
+              borderRadius: "0.5rem",
+              fontSize: "0.72rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: descontoAtivo
+                ? "1px solid var(--accent)"
+                : dark
+                ? "1px solid rgba(255,255,255,0.15)"
+                : "1px solid var(--border)",
+              background: descontoAtivo
+                ? dark
+                  ? "rgba(var(--accent-rgb, 34,197,94), 0.12)"
+                  : "rgba(22,163,74,0.07)"
+                : "transparent",
+              color: descontoAtivo ? "var(--accent)" : "var(--text)",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <span>Tem cupão de desconto?</span>
+            <span
+              style={{
+                fontSize: "0.65rem",
+                fontWeight: 700,
+                padding: "0.1rem 0.4rem",
+                borderRadius: "0.35rem",
+                background: descontoAtivo
+                  ? "var(--accent)"
+                  : dark
+                  ? "rgba(255,255,255,0.1)"
+                  : "rgba(0,0,0,0.07)",
+                color: descontoAtivo ? "#fff" : "var(--text-muted)",
+                transition: "all 0.15s ease",
+              }}
+            >
+              {descontoAtivo ? "Sim" : "Não"}
+            </span>
+          </button>
+
+          {descontoAtivo && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.35rem",
+                padding: "0.5rem 0.6rem",
+                borderRadius: "0.5rem",
+                background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+                border: dark
+                  ? "1px solid rgba(255,255,255,0.08)"
+                  : "1px solid rgba(0,0,0,0.06)",
+              }}
+            >
+              <div>
+                <label className="field-label" style={{ fontSize: "0.58rem" }}>
+                  Desconto (cênt./L)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={descontoCentimos ?? ""}
+                  placeholder="ex: 6"
+                  onChange={(e) => {
+                    const v =
+                      e.target.value === ""
+                        ? null
+                        : Math.max(1, Math.round(Number(e.target.value)));
+                    setDescontoCentimos(v);
+                    onChange(vals({ descontoCentimos: v }));
+                  }}
+                  className="field-input"
+                  style={{
+                    minHeight: "32px",
+                    padding: "0.35rem 0.6rem",
+                    fontSize: "0.76rem",
+                    width: "100%",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="field-label" style={{ fontSize: "0.58rem" }}>
+                  Marca do desconto
+                </label>
+                <div style={{ position: "relative" }}>
+                  <select
+                    value={descontoMarcaId}
+                    onChange={(e) => {
+                      setDescontoMarcaId(e.target.value);
+                      onChange(vals({ descontoMarcaId: e.target.value }));
+                    }}
+                    className="field-input"
+                    style={{
+                      minHeight: "32px",
+                      padding: "0.35rem 2rem 0.35rem 0.6rem",
+                      fontSize: "0.76rem",
+                      appearance: "none",
+                      WebkitAppearance: "none",
+                      cursor: "pointer",
+                      width: "100%",
+                    }}
+                  >
+                    <option value="">Selecionar marca</option>
+                    {ALLOWED_MARCAS.map((m) => (
+                      <option key={m.id} value={String(m.id)}>
+                        {m.nome}
+                      </option>
+                    ))}
+                  </select>
+                  <span
+                    style={{
+                      position: "absolute",
+                      right: "0.6rem",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      fontSize: "0.7rem",
+                      lineHeight: 1,
+                      pointerEvents: "none",
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    ▾
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Botões ── */}
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
             gap: "0.4rem",
-			marginTop: "0.55rem",
-			marginBottom: "0.55rem"
+            marginTop: "0.55rem",
+            marginBottom: "0.55rem",
           }}
         >
-<button
-  type="button"
-  onClick={() => { closeDropdowns(); onSearch(vals()); }}
-  disabled={loading}
-  className="btn-primary"
-  style={{
-    background: monoColor,
-    color: dark ? "#000000" : "#ffffff",
-    borderColor: monoColor,
-    opacity: loading ? 0.7 : 1,
-    padding: "0.35rem 0.5rem",
-    fontSize: "0.7rem",
-    minHeight: 32,
-    borderRadius: "0.5rem",
-  }}
->
-  {loading ? "A pesquisar..." : "Pesquisar"}
-</button>
+          <button
+            type="button"
+            onClick={() => { closeDropdowns(); onSearch(vals()); }}
+            disabled={loading}
+            className="btn-primary"
+            style={{
+              background: monoColor,
+              color: dark ? "#000000" : "#ffffff",
+              borderColor: monoColor,
+              opacity: loading ? 0.7 : 1,
+              padding: "0.35rem 0.5rem",
+              fontSize: "0.7rem",
+              minHeight: 32,
+              borderRadius: "0.5rem",
+            }}
+          >
+            {loading ? "A pesquisar..." : "Pesquisar"}
+          </button>
 
-<button
-  type="button"
-  onClick={handleReset}
-  className="btn-ghost"
-  style={{ padding: "0.35rem 0.5rem", fontSize: "0.7rem", minHeight: 32, borderRadius: "0.5rem" }}
->
-  Limpar
-</button>
+          <button
+            type="button"
+            onClick={handleReset}
+            className="btn-ghost"
+            style={{
+              padding: "0.35rem 0.5rem",
+              fontSize: "0.7rem",
+              minHeight: 32,
+              borderRadius: "0.5rem",
+            }}
+          >
+            Limpar
+          </button>
         </div>
       </div>
     </aside>
