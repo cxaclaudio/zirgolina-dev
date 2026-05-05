@@ -126,14 +126,12 @@
    LEAFLET — eliminar TODOS os artefactos visuais
    ═══════════════════════════════════════════ */
 
-/* Rectângulo de selecção (boxZoom) */
 .leaflet-zoom-box {
   display: none !important;
   border: none !important;
   background: none !important;
 }
 
-/* PRINCIPAL: outline/highlight nos polígonos clicados */
 .leaflet-interactive:focus,
 .leaflet-interactive:focus-visible,
 .leaflet-interactive:focus-within {
@@ -145,7 +143,6 @@ path.leaflet-interactive:focus-visible {
   outline: none !important;
 }
 
-/* Sem selecção de texto ao arrastar o mapa */
 .leaflet-container {
   -webkit-user-select: none !important;
   -moz-user-select: none !important;
@@ -155,7 +152,15 @@ path.leaflet-interactive:focus-visible {
   outline: none !important;
 }
 
-/* Tooltips */
+/* Garantir que elementos com style inline no popup não são sobrescritos */
+.leaflet-popup-content b,
+.leaflet-popup-content strong {
+  color: inherit;
+}
+.leaflet-popup-content [style*="color"] {
+  color: revert-layer;
+}
+
 .map-tip {
   background: var(--bg-card) !important;
   border: 1px solid var(--border) !important;
@@ -168,7 +173,6 @@ path.leaflet-interactive:focus-visible {
 }
 .map-tip::before { display: none !important; }
 
-/* Cluster — anular estilos default */
 .marker-cluster-small,
 .marker-cluster-medium,
 .marker-cluster-large,
