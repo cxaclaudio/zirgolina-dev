@@ -43,6 +43,13 @@ type UrlSnapshot = {
   lat: number | null;
   lng: number | null;
   radiusMarcaIds: string[];
+  // ── cupões de desconto ──
+  filterDescontoAtivo: boolean;
+  filterDescontoCentimos: number | null;
+  filterDescontoMarcaId: string;
+  radiusDescontoAtivo: boolean;
+  radiusDescontoCentimos: number | null;
+  radiusDescontoMarcaId: string;
 };
 
 const VALID_SORTS: CombustivelOrdenacao[] = [
@@ -162,9 +169,27 @@ export function useHomePageLogic() {
       lat: userLocation?.lat ?? null,
       lng: userLocation?.lng ?? null,
       radiusMarcaIds,
+      filterDescontoAtivo,
+      filterDescontoCentimos,
+      filterDescontoMarcaId,
+      radiusDescontoAtivo,
+      radiusDescontoCentimos,
+      radiusDescontoMarcaId,
       ...overrides,
     }),
-    [fuelId, ordenacao, activeRadiusKm, userLocation, radiusMarcaIds]
+    [
+      fuelId,
+      ordenacao,
+      activeRadiusKm,
+      userLocation,
+      radiusMarcaIds,
+      filterDescontoAtivo,
+      filterDescontoCentimos,
+      filterDescontoMarcaId,
+      radiusDescontoAtivo,
+      radiusDescontoCentimos,
+      radiusDescontoMarcaId,
+    ]
   );
 
   const syncUrl = useCallback((snap: UrlSnapshot) => {
@@ -181,6 +206,19 @@ export function useHomePageLogic() {
       params.set("lat", String(snap.lat));
       params.set("lng", String(snap.lng));
       if (snap.radiusMarcaIds.length > 0) params.set("rb", snap.radiusMarcaIds.join(","));
+      // cupão de desconto do radius
+      if (snap.radiusDescontoAtivo && snap.radiusDescontoCentimos != null && snap.radiusDescontoMarcaId) {
+        params.set("rda", "1");
+        params.set("rdc", String(snap.radiusDescontoCentimos));
+        params.set("rdm", snap.radiusDescontoMarcaId);
+      }
+    } else {
+      // cupão de desconto do filterpanel
+      if (snap.filterDescontoAtivo && snap.filterDescontoCentimos != null && snap.filterDescontoMarcaId) {
+        params.set("fda", "1");
+        params.set("fdc", String(snap.filterDescontoCentimos));
+        params.set("fdm", snap.filterDescontoMarcaId);
+      }
     }
     const nextQs = params.toString();
     const nextUrl = nextQs ? `${window.location.pathname}?${nextQs}` : window.location.pathname;
@@ -396,15 +434,23 @@ export function useHomePageLogic() {
     const radiusMarcaIdsFromUrl = (params.get("rb") || "")
       .split(",").map((x) => x.trim()).filter(Boolean);
 
+    // ── restaurar cupões de desconto do URL ──
+    const rdaFromUrl = params.get("rda") === "1";
+    const rdcFromUrl = params.get("rdc") ? Number(params.get("rdc")) : null;
+    const rdmFromUrl = params.get("rdm") || "";
+    const fdaFromUrl = params.get("fda") === "1";
+    const fdcFromUrl = params.get("fdc") ? Number(params.get("fdc")) : null;
+    const fdmFromUrl = params.get("fdm") || "";
+
     const next: FilterValues = sanitizeFilters({
       fuelId: fuelFromUrl,
       idDistrito: distritoFromUrl,
       idMunicipio: municipiosFromUrl,
       marcaIds: marcaIdsFromUrl,
       search: searchFromUrl,
-      descontoAtivo: false,
-      descontoCentimos: null,
-      descontoMarcaId: "",
+      descontoAtivo: fdaFromUrl,
+      descontoCentimos: fdcFromUrl,
+      descontoMarcaId: fdmFromUrl,
     });
 
     filtersRef.current = next;
@@ -413,9 +459,17 @@ export function useHomePageLogic() {
     setMunicipioAtivo(getPrimaryMunicipioId(municipiosFromUrl));
     setOrdenacao(sortFromUrl);
     setRadiusMarcaIds(radiusMarcaIdsFromUrl);
+    setFilterDescontoAtivo(fdaFromUrl);
+    setFilterDescontoCentimos(fdcFromUrl);
+    setFilterDescontoMarcaId(fdmFromUrl);
     setUrlReady(true);
 
     if (radiusKm && Number.isFinite(lat) && Number.isFinite(lng)) {
+      if (rdaFromUrl && rdcFromUrl != null && rdmFromUrl) {
+        setRadiusDescontoAtivo(rdaFromUrl);
+        setRadiusDescontoCentimos(rdcFromUrl);
+        setRadiusDescontoMarcaId(rdmFromUrl);
+      }
       void fetchPostosBySharedRadius({
         fuelIdArg: fuelFromUrl,
         lat,
@@ -457,6 +511,9 @@ export function useHomePageLogic() {
           lat: loc.lat,
           lng: loc.lng,
           radiusMarcaIds: [],
+          radiusDescontoAtivo: false,
+          radiusDescontoCentimos: null,
+          radiusDescontoMarcaId: "",
         }));
         await fetchPostosBySharedRadius({
           fuelIdArg: fuelId,
@@ -516,6 +573,12 @@ export function useHomePageLogic() {
       lat: null,
       lng: null,
       radiusMarcaIds: [],
+      filterDescontoAtivo: false,
+      filterDescontoCentimos: null,
+      filterDescontoMarcaId: "",
+      radiusDescontoAtivo: false,
+      radiusDescontoCentimos: null,
+      radiusDescontoMarcaId: "",
     });
   }, [clearRadiusSearchState, resetMapsToPortugal, syncUrl]);
 
@@ -542,6 +605,9 @@ export function useHomePageLogic() {
         lat: null,
         lng: null,
         radiusMarcaIds: [],
+        radiusDescontoAtivo: false,
+        radiusDescontoCentimos: null,
+        radiusDescontoMarcaId: "",
       }));
       if (newF.marcaIds.length > 0) {
         setHasSearched(true);
@@ -593,15 +659,21 @@ export function useHomePageLogic() {
         lat: null,
         lng: null,
         radiusMarcaIds: [],
+        radiusDescontoAtivo: false,
+        radiusDescontoCentimos: null,
+        radiusDescontoMarcaId: "",
       }));
       fetchPostos(novoFiltro);
     },
     [clearRadiusSearchState, fetchPostos, fuelId, syncUrl, buildUrlSnapshot]
   );
 
+  // ── handleFilterChange: NÃO faz clearRadiusSearchState ──
+  // O radius só é apagado ao clicar "Pesquisar" (handleSearch).
+  // Aqui apenas actualizamos os filtros do FilterPanel e o URL,
+  // preservando por completo o estado do LocationRadiusPanel.
   const handleFilterChange = useCallback(
     (f: FilterValues) => {
-      clearRadiusSearchState();
       const next = sanitizeFilters(f);
       const distritoMudou = next.idDistrito !== filtersRef.current.idDistrito;
       const concelhoMudou = next.idMunicipio !== filtersRef.current.idMunicipio;
@@ -614,16 +686,16 @@ export function useHomePageLogic() {
       setFilterDescontoAtivo(next.descontoAtivo ?? false);
       setFilterDescontoCentimos(next.descontoCentimos ?? null);
       setFilterDescontoMarcaId(next.descontoMarcaId ?? "");
+      // Preserva radius no URL se estiver activo; caso contrário usa filtros normais
       syncUrl(buildUrlSnapshot({
         fuelId: next.fuelId,
         idDistrito: next.idDistrito,
         idMunicipio: next.idMunicipio,
         marcaIds: next.marcaIds,
         search: next.search,
-        radiusKm: null,
-        lat: null,
-        lng: null,
-        radiusMarcaIds: [],
+        filterDescontoAtivo: next.descontoAtivo ?? false,
+        filterDescontoCentimos: next.descontoCentimos ?? null,
+        filterDescontoMarcaId: next.descontoMarcaId ?? "",
       }));
       if (!next.idDistrito && !next.idMunicipio && next.marcaIds.length === 0 && !next.search) {
         setHasSearched(false);
@@ -646,7 +718,7 @@ export function useHomePageLogic() {
         flyToDistrito(next.idDistrito);
       }
     },
-    [clearRadiusSearchState, flyToConcelho, flyToDistrito, resetMapsToPortugal, syncUrl, buildUrlSnapshot]
+    [flyToConcelho, flyToDistrito, resetMapsToPortugal, syncUrl, buildUrlSnapshot]
   );
 
   const handleSearch = useCallback(
@@ -672,6 +744,12 @@ export function useHomePageLogic() {
         lat: null,
         lng: null,
         radiusMarcaIds: [],
+        filterDescontoAtivo: next.descontoAtivo ?? false,
+        filterDescontoCentimos: next.descontoCentimos ?? null,
+        filterDescontoMarcaId: next.descontoMarcaId ?? "",
+        radiusDescontoAtivo: false,
+        radiusDescontoCentimos: null,
+        radiusDescontoMarcaId: "",
       }));
       ignoreMapClicksRef.current = true;
       setTimeout(() => { ignoreMapClicksRef.current = false; }, 1500);
@@ -699,8 +777,13 @@ export function useHomePageLogic() {
       setRadiusDescontoAtivo(ativo);
       setRadiusDescontoCentimos(centimos);
       setRadiusDescontoMarcaId(marcaId);
+      syncUrl(buildUrlSnapshot({
+        radiusDescontoAtivo: ativo,
+        radiusDescontoCentimos: centimos,
+        radiusDescontoMarcaId: marcaId,
+      }));
     },
-    []
+    [syncUrl, buildUrlSnapshot]
   );
 
   const hasMarca = filtersRef.current.marcaIds.length > 0;
