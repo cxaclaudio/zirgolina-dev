@@ -34,6 +34,10 @@ interface Props {
   distritoAtivo: string;
   municipioAtivo: string;
   cheapestPrice?: number | null;
+  // Valores iniciais para restaurar desconto a partir do URL
+  initialDescontoAtivo?: boolean;
+  initialDescontoCentimos?: number | null;
+  initialDescontoMarcaId?: string;
 }
 
 export default function FilterPanel({
@@ -44,6 +48,9 @@ export default function FilterPanel({
   currentFuelId,
   distritoAtivo,
   municipioAtivo,
+  initialDescontoAtivo = false,
+  initialDescontoCentimos = null,
+  initialDescontoMarcaId = "",
 }: Props) {
   const { dark } = useTheme();
 
@@ -55,9 +62,20 @@ export default function FilterPanel({
   const [municipiosOpen, setMunicipiosOpen] = useState(false);
   const [marcasOpen, setMarcasOpen] = useState(false);
 
-  const [descontoAtivo, setDescontoAtivo] = useState(false);
-  const [descontoCentimos, setDescontoCentimos] = useState<number | null>(null);
-  const [descontoMarcaId, setDescontoMarcaId] = useState("");
+  const [descontoAtivo, setDescontoAtivo] = useState(initialDescontoAtivo);
+  const [descontoCentimos, setDescontoCentimos] = useState<number | null>(initialDescontoCentimos);
+  const [descontoMarcaId, setDescontoMarcaId] = useState(initialDescontoMarcaId);
+
+  // Sincroniza uma única vez quando os valores iniciais chegam (restauro do URL)
+  const initialDescontoSynced = useRef(false);
+  useEffect(() => {
+    if (initialDescontoSynced.current) return;
+    if (!initialDescontoAtivo && !initialDescontoCentimos && !initialDescontoMarcaId) return;
+    initialDescontoSynced.current = true;
+    setDescontoAtivo(initialDescontoAtivo);
+    setDescontoCentimos(initialDescontoCentimos);
+    setDescontoMarcaId(initialDescontoMarcaId);
+  }, [initialDescontoAtivo, initialDescontoCentimos, initialDescontoMarcaId]);
 
   const monoColor = dark ? "#ffffff" : "#000000";
 
