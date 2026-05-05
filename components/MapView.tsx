@@ -92,29 +92,53 @@ async function fetchGeoJSON(url: string) {
   }
 }
 
-/** Converte texto de preço "1,234" ou "1.234" → número, null se inválido */
 function parsePreco(texto: string): number | null {
   const n = parseFloat(texto.replace(",", ".").replace(/[^\d.]/g, ""));
   return isNaN(n) ? null : n;
 }
 
-/** Resolve o nome da marca a partir do seu ID (ex: "29" → "GALP") */
 function marcaNomeFromId(marcaId: string): string {
   return ALLOWED_MARCAS.find((m) => m.id === marcaId)?.nome ?? "";
 }
 
 /**
- * Devolve a cor do preço consoante o tipo de combustível:
- *   Gasolina  → verde  (#16a34a)
- *   Gasóleo   → preto  (#1a1a1a)
- *   GPL Auto  → azul   (#2563eb)
- *   Outros    → cinza  (#555)
+ * Devolve a cor do preço consoante o tipo de combustível (texto da DGEG).
+ *
+ * Lógica robusta — verifica PRIMEIRO se é gasóleo (para evitar que
+ * "Gasóleo" seja apanhado pelo prefixo "gas" antes de "Gasolina").
+ *
+ * Tipos conhecidos da DGEG:
+ *   Gasolina simples 95 / Gasolina especial 95 / Gasolina 98 / Gasolina especial 98
+ *     → verde  #16a34a
+ *   Gasóleo simples / Gasóleo especial / Gasóleo colorido
+ *     → preto  #1a1a1a
+ *   GPL Auto
+ *     → azul   #2563eb
  */
 function corPorTipoCombustivel(tipo: string): string {
-  const t = normalizeName(tipo);
+  const t = normalizeName(tipo); // remove acentos, lowercase
+
+  // GPL — verificar antes de "gas" para não conflituar
+  if (t.startsWith("gpl") || t.includes("gas de petroleo") || t.includes("gas petroleo")) {
+    return "#2563eb";
+  }
+
+  // Gasóleo — "gasoleo" começa por "gas" mas NÃO por "gasolina"
+  // Verificar antes de gasolina para clareza explícita
+  if (t.startsWith("gasoleo") || t.includes(" gasoleo") || t === "gasoleo") {
+    return "#1a1a1a";
+  }
+
+  // Gasolina
+  if (t.startsWith("gasolina") || t.includes(" gasolina")) {
+    return "#16a34a";
+  }
+
+  // Fallback: tenta detetar por palavras-chave parciais
+  if (t.includes("gasoleo")) return "#1a1a1a";
   if (t.includes("gasolina")) return "#16a34a";
-  if (t.includes("gasoleo") || t.includes("gasóleo") || t.includes("gasoleo")) return "#1a1a1a";
-  if (t.includes("gpl") || t.includes("gas de petroleo liquefeito")) return "#2563eb";
+  if (t.includes("gpl")) return "#2563eb";
+
   return "#555";
 }
 
@@ -143,7 +167,6 @@ export default function MapView({
   const cbConcelho = useRef(onConcelhoClick);
   const mostrarPinsDistritoRef = useRef(mostrarPinsDistrito);
 
-  // Refs para evitar stale closure no tryAdd com setTimeout
   const descontoCentimosRef = useRef(descontoCentimos);
   const descontoMarcaIdRef = useRef(descontoMarcaId);
 
@@ -391,11 +414,8 @@ export default function MapView({
         const L = (await import("leaflet")).default;
         const map = mapRef.current;
 
-        // Lê sempre os valores mais recentes via refs (evita stale closure nos retries)
         const centimos = descontoCentimosRef.current;
         const marcaId = descontoMarcaIdRef.current;
-        // Resolve o nome da marca a partir do ID (ex: "29" → "GALP")
-        // para comparar com posto.marca, que é sempre uma string de nome
         const descontoMarcaNome = marcaId ? marcaNomeFromId(marcaId) : "";
 
         if (map.hasLayer(pinsLayerRef.current)) {
@@ -420,7 +440,6 @@ export default function MapView({
             return;
           }
 
-          // Desconto: compara pelo nome da marca (igual ao PostoCard)
           const temDesconto =
             !!centimos &&
             centimos > 0 &&
@@ -444,8 +463,8 @@ export default function MapView({
                   ? ((precoOriginal! * 1000 - centimos!) / 1000).toFixed(3)
                   : null;
 
-                // Cor do preço baseada no tipo de combustível
-                const corPreco = corPorTipoCombustivel(c.tipo);
+                // Cor robusta por tipo: gasóleo=preto, gasolina=verde, gpl=azul
+                const corPreco = corPorTipoCombustivel(c.tipo ?? "");
 
                 const precoHtml = temDesc
                   ? `<span style="display:inline-flex;align-items:center;gap:0.35rem">
@@ -453,7 +472,7 @@ export default function MapView({
                        <b style="color:#16a34a">${precoDesc}</b>
                        <span style="font-size:0.6rem;color:#16a34a;background:#dcfce7;padding:1px 4px;border-radius:3px">-${centimos}c</span>
                      </span>`
-                  : `<b style="color:${corPreco}">${c.texto}</b>`;
+                  : `<b style="color:${corPreco} !important">${c.texto}</b>`;
 
                 return `
                   <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;font-size:0.72rem">
@@ -471,7 +490,7 @@ export default function MapView({
 
           const marker = L.marker([posto.lat, posto.lng], { icon }).bindPopup(
             `
-<div style="min-width:190px">
+<div style="min-width:190px;font-family:sans-serif">
   <p style="font-weight:700;margin:0 0 2px">
     <span style="color:${marcaCor}">${posto.marca}</span>
     <span style="color:#aaa;margin:0 0.3rem">|</span>
