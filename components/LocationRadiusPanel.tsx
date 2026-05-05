@@ -358,7 +358,7 @@ export default function LocationRadiusPanel({
                     style={{
                       minHeight: "32px",
                       padding: "0.35rem 0.6rem",
-                      fontSize: "0.76rem",
+                      fontSize: "16px",
                       width: "100%",
                     }}
                   />
