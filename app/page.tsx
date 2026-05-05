@@ -104,6 +104,10 @@ export default function Home() {
     descontoCentimos,
     descontoMarcaNome,
     descontoMarcaId,
+    // desconto filterpanel inicial (para restaurar do URL)
+    filterDescontoAtivo,
+    filterDescontoCentimos,
+    filterDescontoMarcaId,
   } = useHomePageLogic();
 
   return (
@@ -196,6 +200,9 @@ export default function Home() {
             distritoAtivo={distritoAtivo}
             municipioAtivo={municipioAtivo}
             cheapestPrice={cheapestPrice}
+            initialDescontoAtivo={filterDescontoAtivo}
+            initialDescontoCentimos={filterDescontoCentimos}
+            initialDescontoMarcaId={filterDescontoMarcaId}
           />
         </div>
 

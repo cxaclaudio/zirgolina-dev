@@ -998,5 +998,9 @@ export function useHomePageLogic() {
     descontoCentimos,
     descontoMarcaNome,
     descontoMarcaId: descontoMarcaIdEfetivo,
+    // exposto para inicializar FilterPanel com valores do URL
+    filterDescontoAtivo,
+    filterDescontoCentimos,
+    filterDescontoMarcaId,
   };
 }
