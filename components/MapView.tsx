@@ -435,19 +435,18 @@ export default function MapView({
               .map((c: any) => {
                 const precoOriginal = parsePreco(c.texto);
                 const temDesc = temDesconto && precoOriginal !== null;
+                // Cálculo igual ao PostoCard: preco - centimos/100
                 const precoDesc = temDesc
-                  ? ((precoOriginal! * 1000 - centimos!) / 1000).toFixed(3)
+                  ? Math.max(0, precoOriginal! - centimos! / 100).toFixed(3)
                   : null;
 
                 const corPreco = corPorTipoCombustivel(c.tipo ?? "");
 
-                // Usar <span font-weight:700> em vez de <b> para evitar
-                // que o CSS cascade (Tailwind/globals) sobrescreva a cor inline
                 const precoHtml = temDesc
                   ? `<span style="display:inline-flex;align-items:center;gap:0.35rem">
                        <s style="color:#bbb;font-size:0.68rem">${c.texto}</s>
-                       <span style="font-weight:700;color:#16a34a">${precoDesc}</span>
-                       <span style="font-size:0.6rem;color:#16a34a;background:#dcfce7;padding:1px 4px;border-radius:3px">-${centimos}c</span>
+                       <span style="font-weight:700;color:${corPreco}">${precoDesc}</span>
+                       <span style="font-size:0.6rem;color:${corPreco};background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px">-${centimos}c</span>
                      </span>`
                   : `<span style="font-weight:700;color:${corPreco}">${c.texto}</span>`;
 
