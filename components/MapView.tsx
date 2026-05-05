@@ -441,13 +441,15 @@ export default function MapView({
 
                 const corPreco = corPorTipoCombustivel(c.tipo ?? "");
 
+                // Usar <span font-weight:700> em vez de <b> para evitar
+                // que o CSS cascade (Tailwind/globals) sobrescreva a cor inline
                 const precoHtml = temDesc
                   ? `<span style="display:inline-flex;align-items:center;gap:0.35rem">
                        <s style="color:#bbb;font-size:0.68rem">${c.texto}</s>
-                       <b style="color:#16a34a">${precoDesc}</b>
+                       <span style="font-weight:700;color:#16a34a">${precoDesc}</span>
                        <span style="font-size:0.6rem;color:#16a34a;background:#dcfce7;padding:1px 4px;border-radius:3px">-${centimos}c</span>
                      </span>`
-                  : `<b style="color:${corPreco}">${c.texto}</b>`;
+                  : `<span style="font-weight:700;color:${corPreco}">${c.texto}</span>`;
 
                 return `
                   <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;font-size:0.72rem">
