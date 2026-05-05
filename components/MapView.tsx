@@ -122,6 +122,10 @@ export default function MapView({
   const cbConcelho = useRef(onConcelhoClick);
   const mostrarPinsDistritoRef = useRef(mostrarPinsDistrito);
 
+  // Refs para evitar stale closure no tryAdd com setTimeout
+  const descontoCentimosRef = useRef(descontoCentimos);
+  const descontoMarcaIdRef = useRef(descontoMarcaId);
+
   useEffect(() => {
     cbDistrito.current = onDistritoClick;
   }, [onDistritoClick]);
@@ -133,6 +137,14 @@ export default function MapView({
   useEffect(() => {
     mostrarPinsDistritoRef.current = mostrarPinsDistrito;
   }, [mostrarPinsDistrito]);
+
+  useEffect(() => {
+    descontoCentimosRef.current = descontoCentimos;
+  }, [descontoCentimos]);
+
+  useEffect(() => {
+    descontoMarcaIdRef.current = descontoMarcaId;
+  }, [descontoMarcaId]);
 
   useEffect(() => {
     if (typeof window === "undefined" || mapRef.current) return;
@@ -358,6 +370,10 @@ export default function MapView({
         const L = (await import("leaflet")).default;
         const map = mapRef.current;
 
+        // Lê sempre os valores mais recentes via refs (evita stale closure nos retries)
+        const centimos = descontoCentimosRef.current;
+        const marcaId = descontoMarcaIdRef.current;
+
         if (map.hasLayer(pinsLayerRef.current)) {
           map.removeLayer(pinsLayerRef.current);
         }
@@ -381,12 +397,13 @@ export default function MapView({
           }
 
           // Desconto: só aplica se o posto tem a marca certa e o desconto está definido
-          const postoMarcaId = String(posto.marcaId ?? "");
+          const postoMarcaId = posto.marcaId != null ? String(posto.marcaId) : "";
           const temDesconto =
-            !!descontoCentimos &&
-            descontoCentimos > 0 &&
-            !!descontoMarcaId &&
-            postoMarcaId === descontoMarcaId;
+            !!centimos &&
+            centimos > 0 &&
+            !!marcaId &&
+            postoMarcaId !== "" &&
+            postoMarcaId === marcaId;
 
           const marcaCor = getMarcaCor(posto.marca ?? "");
           const icon = L.divIcon({
@@ -402,14 +419,14 @@ export default function MapView({
                 const precoOriginal = parsePreco(c.texto);
                 const temDesc = temDesconto && precoOriginal !== null;
                 const precoDesc = temDesc
-                  ? ((precoOriginal! * 1000 - descontoCentimos!) / 1000).toFixed(3)
+                  ? ((precoOriginal! * 1000 - centimos!) / 1000).toFixed(3)
                   : null;
 
                 const precoHtml = temDesc
                   ? `<span style="display:inline-flex;align-items:center;gap:0.35rem">
                        <s style="color:#bbb;font-size:0.68rem">${c.texto}</s>
                        <b style="color:#16a34a">${precoDesc}</b>
-                       <span style="font-size:0.6rem;color:#16a34a;background:#dcfce7;padding:1px 4px;border-radius:3px">-${descontoCentimos}c</span>
+                       <span style="font-size:0.6rem;color:#16a34a;background:#dcfce7;padding:1px 4px;border-radius:3px">-${centimos}c</span>
                      </span>`
                   : `<b style="color:#555">${c.texto}</b>`;
 
@@ -423,7 +440,7 @@ export default function MapView({
 
           const descontoBadge = temDesconto
             ? `<div style="margin-top:6px;font-size:0.65rem;color:#15803d;background:#dcfce7;padding:2px 7px;border-radius:4px;display:inline-block">
-                 🏷️ Cupão ${descontoCentimos}c/L aplicado
+                 🏷️ Cupão ${centimos}c/L aplicado
                </div>`
             : "";
 
