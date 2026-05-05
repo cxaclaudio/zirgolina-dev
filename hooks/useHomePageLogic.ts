@@ -97,7 +97,7 @@ export function useHomePageLogic() {
   const [urlReady, setUrlReady] = useState(false);
 
   const calcBtnRef = useRef<HTMLButtonElement | null>(null);
-  const calcPopoverRef = useRef<HTMLDivide | null>(null);
+  const calcPopoverRef = useRef<HTMLDivElement | null>(null);
 
   const mapFlyRefDesktop = useRef<MapFlyRefType | null>(null);
   const mapFlyRefMobile = useRef<MapFlyRefType | null>(null);
