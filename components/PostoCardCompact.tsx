@@ -13,6 +13,20 @@ interface Props {
   descontoMarcaNome?: string;
 }
 
+const GASOLINA_KEYWORDS = ["gasolina"];
+const GASOLEO_KEYWORDS = ["gasóleo", "gasoleo"];
+const GASOLEO_EXCLUIR = /(agr[ií]col|biodiesel|b[0-9]+|colorid|aditivad)/i;
+const GPL_KEYWORDS = ["gpl"];
+
+function getTipoCombustivel(tipo: string): "gasolina" | "gasoleo" | "gpl" | null {
+  const t = tipo?.toLowerCase() ?? "";
+  if (GPL_KEYWORDS.some((k) => t.includes(k))) return "gpl";
+  if (GASOLEO_EXCLUIR.test(t)) return null;
+  if (GASOLEO_KEYWORDS.some((k) => t.includes(k))) return "gasoleo";
+  if (GASOLINA_KEYWORDS.some((k) => t.includes(k))) return "gasolina";
+  return null;
+}
+
 function normText(s: string) {
   return (s ?? "")
     .toLowerCase()
@@ -35,6 +49,13 @@ function formatDataAtualizacao(value: string | null | undefined): string {
   return value.replace("T", " ").slice(0, 16);
 }
 
+function getPrecoCor(tipo: "gasolina" | "gasoleo" | "gpl" | null, dark: boolean): string {
+  if (tipo === "gasoleo") return dark ? "#ffffff" : "#1a1a1a";
+  if (tipo === "gpl") return "#00A8FF";
+  if (tipo === "gasolina") return "var(--accent)";
+  return "var(--text)";
+}
+
 export default function PostoCardCompact({
   posto,
   tipoAtivo,
@@ -49,12 +70,7 @@ export default function PostoCardCompact({
     ? getPrecoCombustivel(posto, tipoAtivo)
     : posto.preco;
 
-  const precoColor =
-    tipoAtivo === "gasoleo"
-      ? dark ? "#ffffff" : "#000000"
-      : tipoAtivo === "gpl"
-      ? "#00A8FF"
-      : "var(--accent)";
+  const precoColor = getPrecoCor(tipoAtivo ?? null, dark);
 
   const horarioLines = posto.horario
     ? posto.horario.split(" · ").map((s) => s.trim()).filter(Boolean)
@@ -62,13 +78,16 @@ export default function PostoCardCompact({
 
   const ultimaAtualizacao = formatDataAtualizacao(posto.dataAtualizacao);
 
-  // ── desconto ──
+  // ── desconto no preço destaque ──
+  const marcaMatch =
+    !!descontoMarcaNome &&
+    normText(posto.marca ?? "") === normText(descontoMarcaNome);
+
   const temDesconto =
     descontoAtivo &&
     descontoCentimos != null &&
     descontoCentimos > 0 &&
-    !!descontoMarcaNome &&
-    normText(posto.marca ?? "") === normText(descontoMarcaNome) &&
+    marcaMatch &&
     precoDestaque != null;
 
   const precoComDesconto =
@@ -142,19 +161,56 @@ export default function PostoCardCompact({
 
       {expanded && (
         <div style={{ borderTop: "1px solid var(--border)", padding: "0.6rem 0.875rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+          {/* Tabela de combustíveis com cores e desconto por linha */}
           {posto.combustiveis.length > 0 && (
             <div style={{ borderRadius: "0.5rem", overflow: "hidden", border: "1px solid var(--border)" }}>
-              {posto.combustiveis.map((c, i) => (
-                <div key={`${posto.id}-${c.tipo}-${i}`} style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  padding: "0.25rem 0.7rem",
-                  background: i % 2 === 0 ? "var(--bg-input)" : "transparent",
-                  borderBottom: i < posto.combustiveis.length - 1 ? "1px solid var(--border)" : "none",
-                }}>
-                  <span className="text-muted" style={{ fontSize: "0.68rem" }}>{c.tipo}</span>
-                  <strong style={{ fontSize: "0.72rem", color: dark ? "#aaaaaa" : "#555555" }}>{c.texto}</strong>
-                </div>
-              ))}
+              {posto.combustiveis.map((c, i) => {
+                const tipoComb = getTipoCombustivel(c.tipo ?? "");
+                const corPreco = getPrecoCor(tipoComb, dark);
+                const precoNum: number | null = (c as any).preco ?? null;
+
+                const aplicarDesconto =
+                  temDesconto &&
+                  tipoAtivo != null &&
+                  tipoComb === tipoAtivo &&
+                  precoNum != null;
+
+                const precoDescNum = aplicarDesconto
+                  ? Math.max(0, precoNum! - descontoCentimos! / 100)
+                  : null;
+
+                return (
+                  <div key={`${posto.id}-${c.tipo}-${i}`} style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "0.25rem 0.7rem",
+                    background: i % 2 === 0 ? "var(--bg-input)" : "transparent",
+                    borderBottom: i < posto.combustiveis.length - 1 ? "1px solid var(--border)" : "none",
+                  }}>
+                    <span className="text-muted" style={{ fontSize: "0.68rem" }}>{c.tipo}</span>
+                    {aplicarDesconto && precoDescNum != null ? (
+                      <span style={{ display: "flex", alignItems: "baseline", gap: "0.35rem" }}>
+                        <strong style={{ fontSize: "0.72rem", color: corPreco }}>
+                          {precoDescNum.toFixed(3)} €/L
+                        </strong>
+                        <span style={{ fontSize: "0.65rem", color: "var(--text-muted)", textDecoration: "line-through" }}>
+                          {precoNum!.toFixed(3)}
+                        </span>
+                        <span style={{
+                          fontSize: "0.58rem", fontWeight: 700,
+                          background: "#22c55e22", color: "#22c55e",
+                          borderRadius: "0.3rem", padding: "0.08rem 0.28rem", lineHeight: 1.4,
+                        }}>
+                          -{descontoCentimos}c
+                        </span>
+                      </span>
+                    ) : (
+                      <strong style={{ fontSize: "0.72rem", color: corPreco }}>
+                        {c.texto}
+                      </strong>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "baseline" }}>
