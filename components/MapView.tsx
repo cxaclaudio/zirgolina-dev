@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { Posto } from "@/lib/dgeg";
+import { ALLOWED_MARCAS } from "@/lib/dgeg";
 import { getMarcaCor } from "@/lib/postos";
 
 interface Props {
@@ -95,6 +96,11 @@ async function fetchGeoJSON(url: string) {
 function parsePreco(texto: string): number | null {
   const n = parseFloat(texto.replace(",", ".").replace(/[^\d.]/g, ""));
   return isNaN(n) ? null : n;
+}
+
+/** Resolve o nome da marca a partir do seu ID (ex: "29" → "GALP") */
+function marcaNomeFromId(marcaId: string): string {
+  return ALLOWED_MARCAS.find((m) => m.id === marcaId)?.nome ?? "";
 }
 
 export default function MapView({
@@ -373,6 +379,9 @@ export default function MapView({
         // Lê sempre os valores mais recentes via refs (evita stale closure nos retries)
         const centimos = descontoCentimosRef.current;
         const marcaId = descontoMarcaIdRef.current;
+        // Resolve o nome da marca a partir do ID (ex: "29" → "GALP")
+        // para comparar com posto.marca, que é sempre uma string de nome
+        const descontoMarcaNome = marcaId ? marcaNomeFromId(marcaId) : "";
 
         if (map.hasLayer(pinsLayerRef.current)) {
           map.removeLayer(pinsLayerRef.current);
@@ -396,14 +405,12 @@ export default function MapView({
             return;
           }
 
-          // Desconto: só aplica se o posto tem a marca certa e o desconto está definido
-          const postoMarcaId = posto.marcaId != null ? String(posto.marcaId) : "";
+          // Desconto: compara pelo nome da marca (igual ao PostoCard)
           const temDesconto =
             !!centimos &&
             centimos > 0 &&
-            !!marcaId &&
-            postoMarcaId !== "" &&
-            postoMarcaId === marcaId;
+            !!descontoMarcaNome &&
+            normalizeName(posto.marca ?? "") === normalizeName(descontoMarcaNome);
 
           const marcaCor = getMarcaCor(posto.marca ?? "");
           const icon = L.divIcon({
