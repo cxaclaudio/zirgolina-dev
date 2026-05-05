@@ -103,6 +103,21 @@ function marcaNomeFromId(marcaId: string): string {
   return ALLOWED_MARCAS.find((m) => m.id === marcaId)?.nome ?? "";
 }
 
+/**
+ * Devolve a cor do preço consoante o tipo de combustível:
+ *   Gasolina  → verde  (#16a34a)
+ *   Gasóleo   → preto  (#1a1a1a)
+ *   GPL Auto  → azul   (#2563eb)
+ *   Outros    → cinza  (#555)
+ */
+function corPorTipoCombustivel(tipo: string): string {
+  const t = normalizeName(tipo);
+  if (t.includes("gasolina")) return "#16a34a";
+  if (t.includes("gasoleo") || t.includes("gasóleo") || t.includes("gasoleo")) return "#1a1a1a";
+  if (t.includes("gpl") || t.includes("gas de petroleo liquefeito")) return "#2563eb";
+  return "#555";
+}
+
 export default function MapView({
   postos,
   userLocation,
@@ -429,13 +444,16 @@ export default function MapView({
                   ? ((precoOriginal! * 1000 - centimos!) / 1000).toFixed(3)
                   : null;
 
+                // Cor do preço baseada no tipo de combustível
+                const corPreco = corPorTipoCombustivel(c.tipo);
+
                 const precoHtml = temDesc
                   ? `<span style="display:inline-flex;align-items:center;gap:0.35rem">
                        <s style="color:#bbb;font-size:0.68rem">${c.texto}</s>
                        <b style="color:#16a34a">${precoDesc}</b>
                        <span style="font-size:0.6rem;color:#16a34a;background:#dcfce7;padding:1px 4px;border-radius:3px">-${centimos}c</span>
                      </span>`
-                  : `<b style="color:#555">${c.texto}</b>`;
+                  : `<b style="color:${corPreco}">${c.texto}</b>`;
 
                 return `
                   <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;font-size:0.72rem">
