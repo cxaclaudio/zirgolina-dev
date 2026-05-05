@@ -74,17 +74,16 @@ export default function PostoCard({
     ? getPrecoCombustivel(posto, tipoAtivo)
     : posto.preco;
 
-  // ── desconto no preço destaque ──
+  // marca bate com o cupão?
   const marcaMatch =
-    !!descontoMarcaNome &&
-    normText(posto.marca ?? "") === normText(descontoMarcaNome);
-
-  const temDesconto =
     descontoAtivo &&
     descontoCentimos != null &&
     descontoCentimos > 0 &&
-    marcaMatch &&
-    precoDestaque != null;
+    !!descontoMarcaNome &&
+    normText(posto.marca ?? "") === normText(descontoMarcaNome);
+
+  // desconto no preço destaque
+  const temDesconto = marcaMatch && precoDestaque != null;
 
   const precoComDesconto =
     temDesconto && precoDestaque != null
@@ -92,7 +91,6 @@ export default function PostoCard({
       : null;
 
   const precoColor = getPrecoCor(tipoAtivo ?? null, dark);
-
   const ultimaAtualizacao = formatDataAtualizacao(posto.dataAtualizacao);
 
   function handleDirecoes(e: React.MouseEvent) {
@@ -161,21 +159,15 @@ export default function PostoCard({
         </button>
       </div>
 
-      {/* Tabela de combustíveis com cores e desconto por linha */}
+      {/* Tabela de combustíveis */}
       {posto.combustiveis.length > 0 && (
         <div style={{ borderRadius: "0.5rem", overflow: "hidden", border: "1px solid var(--border)", margin: "0.45rem 0 0" }}>
           {posto.combustiveis.map((c, i) => {
             const tipoComb = getTipoCombustivel(c.tipo ?? "");
             const corPreco = getPrecoCor(tipoComb, dark);
             const precoNum: number | null = (c as any).preco ?? null;
-
-            // Desconto: só se a marca bate e o tipo corresponde ao tipoAtivo
-            const aplicarDesconto =
-              temDesconto &&
-              tipoAtivo != null &&
-              tipoComb === tipoAtivo &&
-              precoNum != null;
-
+            // desconto aplica-se a TODOS os combustíveis da marca
+            const aplicarDesconto = marcaMatch && precoNum != null;
             const precoDescNum = aplicarDesconto
               ? Math.max(0, precoNum! - descontoCentimos! / 100)
               : null;

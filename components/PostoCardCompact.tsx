@@ -71,24 +71,21 @@ export default function PostoCardCompact({
     : posto.preco;
 
   const precoColor = getPrecoCor(tipoAtivo ?? null, dark);
-
   const horarioLines = posto.horario
     ? posto.horario.split(" · ").map((s) => s.trim()).filter(Boolean)
     : [];
-
   const ultimaAtualizacao = formatDataAtualizacao(posto.dataAtualizacao);
 
-  // ── desconto no preço destaque ──
+  // marca bate com o cupão?
   const marcaMatch =
-    !!descontoMarcaNome &&
-    normText(posto.marca ?? "") === normText(descontoMarcaNome);
-
-  const temDesconto =
     descontoAtivo &&
     descontoCentimos != null &&
     descontoCentimos > 0 &&
-    marcaMatch &&
-    precoDestaque != null;
+    !!descontoMarcaNome &&
+    normText(posto.marca ?? "") === normText(descontoMarcaNome);
+
+  // desconto no preço destaque
+  const temDesconto = marcaMatch && precoDestaque != null;
 
   const precoComDesconto =
     temDesconto && precoDestaque != null
@@ -126,7 +123,7 @@ export default function PostoCardCompact({
           <span style={{ color: "var(--text)", fontWeight: 500 }}>{posto.nome}</span>
         </span>
 
-        {/* Preço + badge desconto + chevron */}
+        {/* Preço destaque + badge + chevron */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexShrink: 0 }}>
           {temDesconto && precoComDesconto != null ? (
             <>
@@ -161,20 +158,15 @@ export default function PostoCardCompact({
 
       {expanded && (
         <div style={{ borderTop: "1px solid var(--border)", padding: "0.6rem 0.875rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-          {/* Tabela de combustíveis com cores e desconto por linha */}
+          {/* Tabela de combustíveis com cores e desconto em TODOS */}
           {posto.combustiveis.length > 0 && (
             <div style={{ borderRadius: "0.5rem", overflow: "hidden", border: "1px solid var(--border)" }}>
               {posto.combustiveis.map((c, i) => {
                 const tipoComb = getTipoCombustivel(c.tipo ?? "");
                 const corPreco = getPrecoCor(tipoComb, dark);
                 const precoNum: number | null = (c as any).preco ?? null;
-
-                const aplicarDesconto =
-                  temDesconto &&
-                  tipoAtivo != null &&
-                  tipoComb === tipoAtivo &&
-                  precoNum != null;
-
+                // desconto aplica-se a TODOS os combustíveis da marca
+                const aplicarDesconto = marcaMatch && precoNum != null;
                 const precoDescNum = aplicarDesconto
                   ? Math.max(0, precoNum! - descontoCentimos! / 100)
                   : null;
