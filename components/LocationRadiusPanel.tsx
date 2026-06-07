@@ -358,8 +358,10 @@ export default function LocationRadiusPanel({
                     style={{
                       minHeight: "32px",
                       padding: "0.35rem 0.6rem",
-                      fontSize: "16px",
+                      fontSize: "0.76rem",
                       width: "100%",
+                      /* evita zoom iOS sem precisar de 16px */
+                      touchAction: "manipulation",
                     }}
                   />
                 </div>

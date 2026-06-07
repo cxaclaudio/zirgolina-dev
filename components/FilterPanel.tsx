@@ -34,7 +34,6 @@ interface Props {
   distritoAtivo: string;
   municipioAtivo: string;
   cheapestPrice?: number | null;
-  // Valores iniciais para restaurar desconto a partir do URL
   initialDescontoAtivo?: boolean;
   initialDescontoCentimos?: number | null;
   initialDescontoMarcaId?: string;
@@ -66,7 +65,6 @@ export default function FilterPanel({
   const [descontoCentimos, setDescontoCentimos] = useState<number | null>(initialDescontoCentimos);
   const [descontoMarcaId, setDescontoMarcaId] = useState(initialDescontoMarcaId);
 
-  // Sincroniza uma única vez quando os valores iniciais chegam (restauro do URL)
   const initialDescontoSynced = useRef(false);
   useEffect(() => {
     if (initialDescontoSynced.current) return;
@@ -602,8 +600,10 @@ export default function FilterPanel({
                   style={{
                     minHeight: "32px",
                     padding: "0.35rem 0.6rem",
-                    fontSize: "16px",
+                    fontSize: "0.76rem",
                     width: "100%",
+                    /* evita zoom iOS sem precisar de 16px */
+                    touchAction: "manipulation",
                   }}
                 />
               </div>
