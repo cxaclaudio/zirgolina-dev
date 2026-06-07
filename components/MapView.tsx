@@ -181,8 +181,10 @@ export default function MapView({
   const descontoCentimosRef = useRef(descontoCentimos);
   const descontoMarcaIdRef = useRef(descontoMarcaId);
   const tipoAtivoRef = useRef(tipoAtivo);
+  const mostrarPinsRef = useRef(mostrarPins);
+  const postosRef = useRef(postos);
 
-  // balões ativos por defeito; redrawPinsRef chamado só pelo botão €
+  // balões ativos por defeito; redrawPinsRef chamado pelo botão € e pelo zoomend
   const showBaloesRef = useRef(true);
   const redrawPinsRef = useRef<(() => void) | null>(null);
 
@@ -192,8 +194,10 @@ export default function MapView({
   useEffect(() => { descontoCentimosRef.current = descontoCentimos; }, [descontoCentimos]);
   useEffect(() => { descontoMarcaIdRef.current = descontoMarcaId; }, [descontoMarcaId]);
   useEffect(() => { tipoAtivoRef.current = tipoAtivo; }, [tipoAtivo]);
+  useEffect(() => { mostrarPinsRef.current = mostrarPins; }, [mostrarPins]);
+  useEffect(() => { postosRef.current = postos; }, [postos]);
 
-  // ─── Inicialização do mapa (inalterada excepto botão €) ─────────────────────
+  // ─── Inicialização do mapa ─────────────────────────────────────────────────
   useEffect(() => {
     if (typeof window === "undefined" || mapRef.current) return;
 
@@ -204,7 +208,6 @@ export default function MapView({
       if (!containerRef.current) return;
       if ((containerRef.current as any)._leaflet_id) return;
 
-      // zoom nativo no topleft — adicionamos o € ao mesmo bar a seguir
       const map = L.map(containerRef.current, {
         zoomControl: false,
         scrollWheelZoom: true,
@@ -272,6 +275,17 @@ export default function MapView({
         },
       });
       new ComboControl({ position: "topleft" }).addTo(map);
+
+      // ── zoomend: redesenha pins sem mover o mapa ──
+      let lastZoomHadBaloes = map.getZoom() >= ZOOM_BALAO;
+      map.on("zoomend", () => {
+        const nowHasBaloes = map.getZoom() >= ZOOM_BALAO;
+        // só redesenha quando o limiar é cruzado (evita flicker a cada zoom step dentro do mesmo regime)
+        if (nowHasBaloes !== lastZoomHadBaloes) {
+          lastZoomHadBaloes = nowHasBaloes;
+          redrawPinsRef.current?.();
+        }
+      });
 
       const sD = { color: "#22c55e", weight: 1.6, fillColor: "#22c55e", fillOpacity: 0.06 };
       const sDH = { fillOpacity: 0.2, weight: 2.2 };
@@ -410,7 +424,7 @@ export default function MapView({
     })();
   }, []);
 
-  // ─── Pins — lógica original intacta + balões de preço ─────────────────────────
+  // ─── Pins — redesenha quando postos/filtros mudam ─────────────────────────
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -526,20 +540,20 @@ export default function MapView({
 
         map.addLayer(pinsLayerRef.current);
 
-        // fitBounds original — intacto
         if (bounds.length) {
           map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
         }
       })();
     };
 
-    // guarda referência para o botão € poder re-desenhar sem fitBounds
+    // ── redrawPinsRef: redesenha sem fitBounds (botão € e zoomend) ──
     redrawPinsRef.current = () => {
       (async () => {
         const L = (await import("leaflet")).default;
         const map = mapRef.current;
         if (!mapReadyRef.current || !pinsLayerRef.current || !map) return;
 
+        const currentPostos = postosRef.current;
         const centimos = descontoCentimosRef.current;
         const marcaId = descontoMarcaIdRef.current;
         const descontoMarcaNome = marcaId ? marcaNomeFromId(marcaId) : "";
@@ -550,9 +564,9 @@ export default function MapView({
         if (map.hasLayer(pinsLayerRef.current)) map.removeLayer(pinsLayerRef.current);
         pinsLayerRef.current.clearLayers();
 
-        if (!mostrarPins || postos.length === 0) return;
+        if (!mostrarPinsRef.current || currentPostos.length === 0) return;
 
-        postos.forEach((posto) => {
+        currentPostos.forEach((posto) => {
           if (posto.lat === null || posto.lng === null) return;
           if (
             posto.lat < PT_BOUNDS.minLat || posto.lat > PT_BOUNDS.maxLat ||
@@ -643,7 +657,7 @@ export default function MapView({
         });
 
         map.addLayer(pinsLayerRef.current);
-        // SEM fitBounds — o botão € não move o mapa
+        // SEM fitBounds
       })();
     };
 
