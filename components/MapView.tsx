@@ -31,31 +31,13 @@ const PT_BOUNDS = { minLat: 29.0, maxLat: 42.2, minLng: -31.3, maxLng: -6.1 };
 const ZOOM_BALAO = 11;
 
 const NOME_PARA_ID: Record<string, string> = {
-  "aveiro": "1",
-  "beja": "2",
-  "braga": "3",
-  "bragança": "4",
-  "braganca": "4",
-  "castelo branco": "5",
-  "coimbra": "6",
-  "évora": "7",
-  "evora": "7",
-  "faro": "8",
-  "guarda": "9",
-  "leiria": "10",
-  "lisboa": "11",
-  "portalegre": "12",
-  "porto": "13",
-  "santarém": "14",
-  "santarem": "14",
-  "setúbal": "15",
-  "setubal": "15",
-  "viana do castelo": "16",
-  "vila real": "17",
-  "viseu": "18",
-  "açores": "20",
-  "acores": "20",
-  "madeira": "21",
+  "aveiro": "1", "beja": "2", "braga": "3",
+  "bragança": "4", "braganca": "4", "castelo branco": "5",
+  "coimbra": "6", "évora": "7", "evora": "7", "faro": "8",
+  "guarda": "9", "leiria": "10", "lisboa": "11", "portalegre": "12",
+  "porto": "13", "santarém": "14", "santarem": "14",
+  "setúbal": "15", "setubal": "15", "viana do castelo": "16",
+  "vila real": "17", "viseu": "18", "açores": "20", "acores": "20", "madeira": "21",
 };
 
 function disCodeToDgeg(disCode: string) {
@@ -64,18 +46,14 @@ function disCodeToDgeg(disCode: string) {
 
 function normalizeName(s: string): string {
   return (s ?? "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .normalize("NFC");
+    .trim().toLowerCase()
+    .normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
 }
 
 function getDistritoId(nome: string): string | undefined {
   const norm = normalizeName(nome);
   for (const [k, v] of Object.entries(NOME_PARA_ID)) {
-    const kn = normalizeName(k);
-    if (norm === kn) return v;
+    if (norm === normalizeName(k)) return v;
   }
   for (const [k, v] of Object.entries(NOME_PARA_ID)) {
     const kn = normalizeName(k);
@@ -89,9 +67,7 @@ async function fetchGeoJSON(url: string) {
     if (!r.ok) return null;
     const j = await r.json();
     return j?.features?.length ? j : null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 function parsePreco(texto: string): number | null {
@@ -216,14 +192,12 @@ export default function MapView({
         invalidateRef.current = () => setTimeout(() => map.invalidateSize(), 150);
       }
 
-      // ── Cria um único leaflet-bar no topleft com € + + - ──
-      // A técnica: render o botão € como primeiro <a> do mesmo container do zoom
+      // ── Único leaflet-bar topleft: € + + − ──
       const ComboControl = L.Control.extend({
         onAdd() {
-          // Container igual ao leaflet-control-zoom nativo
           const container = L.DomUtil.create("div", "leaflet-bar leaflet-control leaflet-control-zoom");
 
-          // Botão € — igual em tudo ao + e ao -
+          // Botão €
           const euroBtn = L.DomUtil.create("a", "leaflet-control-zoom-in", container) as HTMLAnchorElement;
           euroBtn.innerHTML = "€";
           euroBtn.title = "Mostrar/ocultar preços no mapa";
@@ -246,10 +220,6 @@ export default function MapView({
             redrawPinsRef.current?.();
           });
 
-          // Divisor entre € e +
-          const sep = L.DomUtil.create("span", "", container);
-          sep.style.cssText = "display:block;border-top:1px solid #ccc;margin:0;";
-
           // Botão +
           const zoomIn = L.DomUtil.create("a", "leaflet-control-zoom-in", container) as HTMLAnchorElement;
           zoomIn.innerHTML = "+";
@@ -262,7 +232,7 @@ export default function MapView({
             map.zoomIn();
           });
 
-          // Botão -
+          // Botão −
           const zoomOut = L.DomUtil.create("a", "leaflet-control-zoom-out", container) as HTMLAnchorElement;
           zoomOut.innerHTML = "−";
           zoomOut.title = "Zoom out";
@@ -280,9 +250,7 @@ export default function MapView({
 
       new ComboControl({ position: "topleft" }).addTo(map);
 
-      // Re-desenha pins ao mudar zoom
-      map.on("zoomend", () => redrawPinsRef.current?.());
-
+      // ── Layers geográficos ──
       const sD = { color: "#22c55e", weight: 1.6, fillColor: "#22c55e", fillOpacity: 0.06 };
       const sDH = { fillOpacity: 0.2, weight: 2.2 };
       const sM = { color: "#22c55e", weight: 0.8, fillColor: "#22c55e", fillOpacity: 0.03 };
@@ -408,8 +376,6 @@ export default function MapView({
 
       if (!mostrarPins || postos.length === 0) return;
 
-      const bounds: [number, number][] = [];
-
       postos.forEach((posto) => {
         if (posto.lat === null || posto.lng === null) return;
         if (
@@ -531,14 +497,9 @@ export default function MapView({
         );
 
         pinsLayerRef.current.addLayer(marker);
-        bounds.push([posto.lat, posto.lng]);
       });
 
       map.addLayer(pinsLayerRef.current);
-
-      if (bounds.length) {
-        map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
-      }
     };
 
     redrawPinsRef.current = drawPins;
