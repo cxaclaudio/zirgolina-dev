@@ -105,15 +105,9 @@ function marcaNomeFromId(marcaId: string): string {
 
 function corPorTipoCombustivel(tipo: string): string {
   const t = normalizeName(tipo);
-  if (t.startsWith("gpl") || t.includes("gas de petroleo") || t.includes("gas petroleo")) {
-    return "#2563eb";
-  }
-  if (t.startsWith("gasoleo") || t.includes(" gasoleo") || t === "gasoleo") {
-    return "#1a1a1a";
-  }
-  if (t.startsWith("gasolina") || t.includes(" gasolina")) {
-    return "#16a34a";
-  }
+  if (t.startsWith("gpl") || t.includes("gas de petroleo") || t.includes("gas petroleo")) return "#2563eb";
+  if (t.startsWith("gasoleo") || t.includes(" gasoleo") || t === "gasoleo") return "#1a1a1a";
+  if (t.startsWith("gasolina") || t.includes(" gasolina")) return "#16a34a";
   if (t.includes("gasoleo")) return "#1a1a1a";
   if (t.includes("gasolina")) return "#16a34a";
   if (t.includes("gpl")) return "#2563eb";
@@ -131,14 +125,8 @@ function getPrecoPorTipo(
   const comb = (posto.combustiveis as any[]).find((c) => {
     const t = normalizeName(c.tipo ?? "");
     if (tipoAtivo === "gasolina") return t.startsWith("gasolina") || t.includes(" gasolina");
-    if (tipoAtivo === "gasoleo")
-      return t.startsWith("gasoleo") || t === "gasoleo" || t.includes(" gasoleo");
-    if (tipoAtivo === "gpl")
-      return (
-        t.startsWith("gpl") ||
-        t.includes("gas de petroleo") ||
-        t.includes("gas petroleo")
-      );
+    if (tipoAtivo === "gasoleo") return t.startsWith("gasoleo") || t === "gasoleo" || t.includes(" gasoleo");
+    if (tipoAtivo === "gpl") return t.startsWith("gpl") || t.includes("gas de petroleo") || t.includes("gas petroleo");
     return false;
   });
 
@@ -147,9 +135,7 @@ function getPrecoPorTipo(
   const cor = corPorTipoCombustivel(comb.tipo ?? "");
   const precoOriginal = parsePreco(comb.texto);
   const temDesc =
-    !!centimos &&
-    centimos > 0 &&
-    !!descontoMarcaNome &&
+    !!centimos && centimos > 0 && !!descontoMarcaNome &&
     normalizeName(posto.marca ?? "") === normalizeName(descontoMarcaNome);
   const precoDesc =
     temDesc && precoOriginal !== null
@@ -188,12 +174,8 @@ export default function MapView({
   const descontoMarcaIdRef = useRef(descontoMarcaId);
   const tipoAtivoRef = useRef(tipoAtivo);
 
-  // Toggle balões — ligado por defeito
   const showBaloesRef = useRef(true);
-  // Função de re-render dos pins partilhada (toggle + zoomend)
   const redrawPinsRef = useRef<(() => void) | null>(null);
-  // Referência ao botão toggle para atualizar o seu estilo
-  const toggleBtnRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => { cbDistrito.current = onDistritoClick; }, [onDistritoClick]);
   useEffect(() => { cbConcelho.current = onConcelhoClick; }, [onConcelhoClick]);
@@ -213,8 +195,9 @@ export default function MapView({
       if (!containerRef.current) return;
       if ((containerRef.current as any)._leaflet_id) return;
 
+      // Desativa o zoomControl nativo para o recriarmos na posição correta
       const map = L.map(containerRef.current, {
-        zoomControl: true,
+        zoomControl: false,
         scrollWheelZoom: true,
         boxZoom: false,
         tapTolerance: 15,
@@ -233,50 +216,54 @@ export default function MapView({
         invalidateRef.current = () => setTimeout(() => map.invalidateSize(), 150);
       }
 
-      // ── Botão toggle de balões de preço (canto sup. direito) ──
-      const updateToggleBtn = (btn: HTMLButtonElement) => {
-        const on = showBaloesRef.current;
-        btn.title = on ? "Ocultar preços no mapa" : "Mostrar preços no mapa";
-        btn.style.cssText = `
-          background:${on ? "#dcfce7" : "white"};
-          color:${on ? "#15803d" : "#6b7280"};
-          border:1.5px solid ${on ? "#86efac" : "#d1d5db"};
-          border-radius:6px;
-          padding:5px 10px;
-          cursor:pointer;
-          font-size:12px;
-          font-weight:600;
-          font-family:sans-serif;
-          box-shadow:0 1px 4px rgba(0,0,0,0.12);
-          display:flex;
-          align-items:center;
-          gap:4px;
-          white-space:nowrap;
-          line-height:1;
-        `;
-        btn.innerHTML = `<span style="font-size:13px">${on ? "💰" : "🏷️"}</span> Preços`;
-      };
-
-      const PriceToggleControl = L.Control.extend({
+      // ── Botão € — mesmo estilo dos botões de zoom do Leaflet, posicionado acima deles ──
+      const EuroToggleControl = L.Control.extend({
         onAdd() {
-          const btn = L.DomUtil.create("button") as HTMLButtonElement;
-          toggleBtnRef.current = btn;
-          updateToggleBtn(btn);
+          // Cria um container igual ao leaflet-control-zoom
+          const container = L.DomUtil.create("div", "leaflet-bar leaflet-control");
+          const btn = L.DomUtil.create("a", "", container) as HTMLAnchorElement;
+
+          const updateBtn = () => {
+            const on = showBaloesRef.current;
+            btn.title = on ? "Ocultar preços no mapa" : "Mostrar preços no mapa";
+            btn.setAttribute("role", "button");
+            btn.setAttribute("aria-label", btn.title);
+            btn.style.cssText = `
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 15px;
+              font-weight: 700;
+              font-family: sans-serif;
+              color: ${on ? "#15803d" : "#555"};
+              background: ${on ? "#dcfce7" : "white"};
+              text-decoration: none;
+              width: 26px;
+              height: 26px;
+            `;
+            btn.innerHTML = "€";
+          };
+
+          updateBtn();
+
           L.DomEvent.on(btn, "click", (e) => {
             L.DomEvent.stopPropagation(e);
+            L.DomEvent.preventDefault(e);
             showBaloesRef.current = !showBaloesRef.current;
-            updateToggleBtn(btn);
+            updateBtn();
             redrawPinsRef.current?.();
           });
-          return btn;
+
+          return container;
         },
       });
-      new PriceToggleControl({ position: "topright" }).addTo(map);
 
-      // Re-desenha pins ao mudar de zoom (para ligar/desligar balões por zoom)
-      map.on("zoomend", () => {
-        redrawPinsRef.current?.();
-      });
+      // Adiciona primeiro o botão €, depois o zoom — assim € fica acima
+      new EuroToggleControl({ position: "topright" }).addTo(map);
+      L.control.zoom({ position: "topright" }).addTo(map);
+
+      // Re-desenha pins ao mudar zoom (liga/desliga balões por zoom)
+      map.on("zoomend", () => redrawPinsRef.current?.());
 
       const sD = { color: "#22c55e", weight: 1.6, fillColor: "#22c55e", fillOpacity: 0.06 };
       const sDH = { fillOpacity: 0.2, weight: 2.2 };
@@ -288,16 +275,13 @@ export default function MapView({
 
       fetchGeoJSON(DISTRITOS_URL).then((geojson) => {
         if (!geojson) return;
-
         distritosRef.current = L.geoJSON(geojson, {
           style: () => ({ ...sD }),
           onEachFeature(feature: any, layer: any) {
             const nome: string = feature.properties?.name ?? "";
             const id = getDistritoId(nome);
             if (id) distritoLayerMap[id] = layer;
-            if (nome) {
-              layer.bindTooltip(`<b>${nome}</b>`, { sticky: true, className: "map-tip", direction: "top" });
-            }
+            if (nome) layer.bindTooltip(`<b>${nome}</b>`, { sticky: true, className: "map-tip", direction: "top" });
             layer.on("mouseover", () => layer.setStyle(sDH));
             layer.on("mouseout", () => distritosRef.current?.resetStyle(layer));
             layer.on("click", (e: any) => {
@@ -316,13 +300,10 @@ export default function MapView({
               const layer = distritoLayerMap[id];
               if (!layer) return;
               map.fitBounds(layer.getBounds(), { padding: [30, 30], animate: true });
-              if (id !== "20" && id !== "21") {
-                setTimeout(() => { if (map.getZoom() < 9) map.setZoom(9, { animate: true }); }, 350);
-              }
+              if (id !== "20" && id !== "21") setTimeout(() => { if (map.getZoom() < 9) map.setZoom(9, { animate: true }); }, 350);
             },
             flyToConcelho: (distritoId: string, concelhoNome: string) => {
-              const norm = normalizeName(concelhoNome);
-              const layer = concelhoLayerMap[`${distritoId}_${norm}`];
+              const layer = concelhoLayerMap[`${distritoId}_${normalizeName(concelhoNome)}`];
               if (layer) map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
             },
             resetView: () => map.setView([39.6, -8.0], 7, { animate: true }),
@@ -332,7 +313,6 @@ export default function MapView({
 
       fetchGeoJSON(MUNICIPIOS_URL).then((geojson) => {
         if (!geojson) return;
-
         municipiosRef.current = L.geoJSON(geojson, {
           style: () => ({ ...sM }),
           onEachFeature(feature: any, layer: any) {
@@ -342,11 +322,7 @@ export default function MapView({
             const disCode = (p.dis_code ?? "") as string;
             const distritoId = disCode ? disCodeToDgeg(disCode) : getDistritoId(disNome) ?? "";
             if (distritoId && conNome) concelhoLayerMap[`${distritoId}_${normalizeName(conNome)}`] = layer;
-            if (conNome) {
-              layer.bindTooltip(`<b>${conNome}</b>${disNome ? ` · ${disNome}` : ""}`, {
-                sticky: true, className: "map-tip", direction: "top",
-              });
-            }
+            if (conNome) layer.bindTooltip(`<b>${conNome}</b>${disNome ? ` · ${disNome}` : ""}`, { sticky: true, className: "map-tip", direction: "top" });
             layer.on("mouseover", () => layer.setStyle(sMH));
             layer.on("mouseout", () => municipiosRef.current?.resetStyle(layer));
             layer.on("click", (e: any) => {
@@ -432,9 +408,12 @@ export default function MapView({
         const precoInfo = getPrecoPorTipo(posto, tipoAtivoAtual, centimos, descontoMarcaNome);
         const precoDisplay = precoInfo?.precoDesc ?? precoInfo?.texto ?? null;
 
-        // Balão visível apenas se: toggle ON + zoom suficiente + tipo ativo + há preço
+        // Balão visível: toggle ON + zoom suficiente + tipo ativo + há preço
         const mostrarBalao = showBaloes && zoomPermiteBaloes && !!precoInfo && !!precoDisplay;
 
+        // Quando balão ativo: pin mais pequeno (10px) e sobe ligeiramente
+        // Quando inativo: pin normal (14px)
+        const pinSize = mostrarBalao ? 10 : 14;
         const balaoBg = precoInfo?.precoDesc ? "#dcfce7" : "white";
         const balaoBorder = precoInfo?.cor ?? marcaCor;
         const balaoColor = precoInfo?.cor ?? marcaCor;
@@ -442,35 +421,51 @@ export default function MapView({
         const icon = L.divIcon({
           className: "",
           html: mostrarBalao
-            ? `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer">
+            ? `<div style="display:flex;flex-direction:column;align-items:center;gap:0px;cursor:pointer">
                 <div style="
                   background:${balaoBg};
                   color:${balaoColor};
                   border:1.5px solid ${balaoBorder};
-                  border-radius:6px;
-                  padding:2px 7px;
+                  border-radius:5px;
+                  padding:2px 6px;
                   font-size:11px;
                   font-weight:700;
                   font-family:sans-serif;
                   white-space:nowrap;
-                  box-shadow:0 2px 6px rgba(0,0,0,0.18);
+                  box-shadow:0 2px 6px rgba(0,0,0,0.16);
                   line-height:1.4;
                   position:relative;
                 ">
                   ${precoDisplay}
                   <div style="
-                    position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);
+                    position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);
                     width:0;height:0;
-                    border-left:5px solid transparent;
-                    border-right:5px solid transparent;
-                    border-top:5px solid ${balaoBorder};
+                    border-left:4px solid transparent;
+                    border-right:4px solid transparent;
+                    border-top:4px solid ${balaoBorder};
                   "></div>
                 </div>
-                <div style="width:10px;height:10px;border-radius:50%;background:${marcaCor};box-shadow:0 1px 4px rgba(0,0,0,.35);margin-top:3px"></div>
+                <div style="
+                  width:${pinSize}px;
+                  height:${pinSize}px;
+                  border-radius:50%;
+                  background:${marcaCor};
+                  box-shadow:0 1px 3px rgba(0,0,0,.3);
+                  margin-top:4px;
+                "></div>
               </div>`
-            : `<div style="width:14px;height:14px;border-radius:50%;background:${marcaCor};box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
-          iconSize: mostrarBalao ? [64, 42] : [14, 14],
-          iconAnchor: mostrarBalao ? [32, 42] : [7, 7],
+            : `<div style="
+                width:${pinSize}px;
+                height:${pinSize}px;
+                border-radius:50%;
+                background:${marcaCor};
+                box-shadow:0 1px 4px rgba(0,0,0,.35);
+              "></div>`,
+          iconSize: mostrarBalao ? [60, 38] : [14, 14],
+          // Ancora no centro do pin circular
+          // Com balão: a ancora fica no centro do pin, que está no fundo do icon
+          // O pin (10px) começa a ~28px do topo (38-10=28), centro = 28+5=33
+          iconAnchor: mostrarBalao ? [30, 33] : [7, 7],
         });
 
         const combsHtml =
@@ -496,7 +491,7 @@ export default function MapView({
             .join("") || `<span style="font-size:0.72rem;color:#888">Sem preços</span>`;
 
         const descontoBadge = temDesconto
-          ? `<div style="margin-top:6px;font-size:0.65rem;color:#15803d;background:#dcfce7;padding:2px 7px;border-radius:4px;display:inline-block">🏷️ Cupão ${centimos}c/L aplicado</div>`
+          ? `<div style="margin-top:6px;font-size:0.65rem;color:#15803d;background:#dcfce7;padding:2px 7px;border-radius:4px;display:inline-block">Cupão ${centimos}c/L aplicado</div>`
           : "";
 
         const marker = L.marker([posto.lat, posto.lng], { icon }).bindPopup(
@@ -535,7 +530,6 @@ export default function MapView({
       }
     };
 
-    // Guarda referência para ser chamada pelo toggle e pelo zoomend
     redrawPinsRef.current = drawPins;
 
     const tryAdd = (retries = 20) => {
