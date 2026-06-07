@@ -174,6 +174,7 @@ export default function MapView({
   const descontoMarcaIdRef = useRef(descontoMarcaId);
   const tipoAtivoRef = useRef(tipoAtivo);
 
+  // Balões ativos por defeito
   const showBaloesRef = useRef(true);
   const redrawPinsRef = useRef<(() => void) | null>(null);
 
@@ -195,7 +196,6 @@ export default function MapView({
       if (!containerRef.current) return;
       if ((containerRef.current as any)._leaflet_id) return;
 
-      // Desativa o zoomControl nativo para o recriarmos na posição correta
       const map = L.map(containerRef.current, {
         zoomControl: false,
         scrollWheelZoom: true,
@@ -216,53 +216,71 @@ export default function MapView({
         invalidateRef.current = () => setTimeout(() => map.invalidateSize(), 150);
       }
 
-      // ── Botão € — mesmo estilo dos botões de zoom do Leaflet, posicionado acima deles ──
-      const EuroToggleControl = L.Control.extend({
+      // ── Cria um único leaflet-bar no topleft com € + + - ──
+      // A técnica: render o botão € como primeiro <a> do mesmo container do zoom
+      const ComboControl = L.Control.extend({
         onAdd() {
-          // Cria um container igual ao leaflet-control-zoom
-          const container = L.DomUtil.create("div", "leaflet-bar leaflet-control");
-          const btn = L.DomUtil.create("a", "", container) as HTMLAnchorElement;
+          // Container igual ao leaflet-control-zoom nativo
+          const container = L.DomUtil.create("div", "leaflet-bar leaflet-control leaflet-control-zoom");
 
-          const updateBtn = () => {
+          // Botão € — igual em tudo ao + e ao -
+          const euroBtn = L.DomUtil.create("a", "leaflet-control-zoom-in", container) as HTMLAnchorElement;
+          euroBtn.innerHTML = "€";
+          euroBtn.title = "Mostrar/ocultar preços no mapa";
+          euroBtn.setAttribute("role", "button");
+          euroBtn.href = "#";
+
+          const updateEuro = () => {
             const on = showBaloesRef.current;
-            btn.title = on ? "Ocultar preços no mapa" : "Mostrar preços no mapa";
-            btn.setAttribute("role", "button");
-            btn.setAttribute("aria-label", btn.title);
-            btn.style.cssText = `
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-size: 15px;
-              font-weight: 700;
-              font-family: sans-serif;
-              color: ${on ? "#15803d" : "#555"};
-              background: ${on ? "#dcfce7" : "white"};
-              text-decoration: none;
-              width: 26px;
-              height: 26px;
-            `;
-            btn.innerHTML = "€";
+            euroBtn.style.color = on ? "#15803d" : "";
+            euroBtn.style.background = on ? "#dcfce7" : "";
+            euroBtn.style.fontWeight = "700";
           };
+          updateEuro();
 
-          updateBtn();
-
-          L.DomEvent.on(btn, "click", (e) => {
+          L.DomEvent.on(euroBtn, "click", (e) => {
             L.DomEvent.stopPropagation(e);
             L.DomEvent.preventDefault(e);
             showBaloesRef.current = !showBaloesRef.current;
-            updateBtn();
+            updateEuro();
             redrawPinsRef.current?.();
+          });
+
+          // Divisor entre € e +
+          const sep = L.DomUtil.create("span", "", container);
+          sep.style.cssText = "display:block;border-top:1px solid #ccc;margin:0;";
+
+          // Botão +
+          const zoomIn = L.DomUtil.create("a", "leaflet-control-zoom-in", container) as HTMLAnchorElement;
+          zoomIn.innerHTML = "+";
+          zoomIn.title = "Zoom in";
+          zoomIn.href = "#";
+          zoomIn.setAttribute("role", "button");
+          L.DomEvent.on(zoomIn, "click", (e) => {
+            L.DomEvent.stopPropagation(e);
+            L.DomEvent.preventDefault(e);
+            map.zoomIn();
+          });
+
+          // Botão -
+          const zoomOut = L.DomUtil.create("a", "leaflet-control-zoom-out", container) as HTMLAnchorElement;
+          zoomOut.innerHTML = "−";
+          zoomOut.title = "Zoom out";
+          zoomOut.href = "#";
+          zoomOut.setAttribute("role", "button");
+          L.DomEvent.on(zoomOut, "click", (e) => {
+            L.DomEvent.stopPropagation(e);
+            L.DomEvent.preventDefault(e);
+            map.zoomOut();
           });
 
           return container;
         },
       });
 
-      // Adiciona primeiro o botão €, depois o zoom — assim € fica acima
-      new EuroToggleControl({ position: "topright" }).addTo(map);
-      L.control.zoom({ position: "topright" }).addTo(map);
+      new ComboControl({ position: "topleft" }).addTo(map);
 
-      // Re-desenha pins ao mudar zoom (liga/desliga balões por zoom)
+      // Re-desenha pins ao mudar zoom
       map.on("zoomend", () => redrawPinsRef.current?.());
 
       const sD = { color: "#22c55e", weight: 1.6, fillColor: "#22c55e", fillOpacity: 0.06 };
@@ -404,15 +422,11 @@ export default function MapView({
           normalizeName(posto.marca ?? "") === normalizeName(descontoMarcaNome);
 
         const marcaCor = getMarcaCor(posto.marca ?? "");
-
         const precoInfo = getPrecoPorTipo(posto, tipoAtivoAtual, centimos, descontoMarcaNome);
         const precoDisplay = precoInfo?.precoDesc ?? precoInfo?.texto ?? null;
 
-        // Balão visível: toggle ON + zoom suficiente + tipo ativo + há preço
         const mostrarBalao = showBaloes && zoomPermiteBaloes && !!precoInfo && !!precoDisplay;
 
-        // Quando balão ativo: pin mais pequeno (10px) e sobe ligeiramente
-        // Quando inativo: pin normal (14px)
         const pinSize = mostrarBalao ? 10 : 14;
         const balaoBg = precoInfo?.precoDesc ? "#dcfce7" : "white";
         const balaoBorder = precoInfo?.cor ?? marcaCor;
@@ -462,9 +476,6 @@ export default function MapView({
                 box-shadow:0 1px 4px rgba(0,0,0,.35);
               "></div>`,
           iconSize: mostrarBalao ? [60, 38] : [14, 14],
-          // Ancora no centro do pin circular
-          // Com balão: a ancora fica no centro do pin, que está no fundo do icon
-          // O pin (10px) começa a ~28px do topo (38-10=28), centro = 28+5=33
           iconAnchor: mostrarBalao ? [30, 33] : [7, 7],
         });
 
