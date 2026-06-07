@@ -248,6 +248,7 @@ export default function Home() {
             invalidateRef={mapInvalidateRefDesktop}
             descontoCentimos={descontoCentimos}
             descontoMarcaId={descontoMarcaId}
+            tipoAtivo={tipoAtivo}
           />
         </div>
       </div>
@@ -302,6 +303,7 @@ export default function Home() {
             invalidateRef={mapInvalidateRefMobile}
             descontoCentimos={descontoCentimos}
             descontoMarcaId={descontoMarcaId}
+            tipoAtivo={tipoAtivo}
           />
         </div>
       </div>
