@@ -5,6 +5,8 @@ import type { Posto } from "@/lib/dgeg";
 import { ALLOWED_MARCAS } from "@/lib/dgeg";
 import { getMarcaCor } from "@/lib/postos";
 
+type TipoAtivo = "gasolina" | "gasoleo" | "gpl" | null;
+
 interface Props {
   postos: Posto[];
   userLocation?: { lat: number; lng: number } | null;
@@ -20,6 +22,7 @@ interface Props {
   } | null>;
   descontoCentimos?: number | null;
   descontoMarcaId?: string;
+  tipoAtivo?: TipoAtivo;
 }
 
 const DISTRITOS_URL = "/distritos.geojson";
@@ -118,6 +121,45 @@ function corPorTipoCombustivel(tipo: string): string {
   return "#555";
 }
 
+function getPrecoPorTipo(
+  posto: Posto,
+  tipoAtivo: TipoAtivo,
+  centimos: number | null,
+  descontoMarcaNome: string
+): { texto: string; cor: string; precoDesc: string | null } | null {
+  if (!tipoAtivo || !posto.combustiveis?.length) return null;
+
+  const comb = (posto.combustiveis as any[]).find((c) => {
+    const t = normalizeName(c.tipo ?? "");
+    if (tipoAtivo === "gasolina") return t.startsWith("gasolina") || t.includes(" gasolina");
+    if (tipoAtivo === "gasoleo")
+      return t.startsWith("gasoleo") || t === "gasoleo" || t.includes(" gasoleo");
+    if (tipoAtivo === "gpl")
+      return (
+        t.startsWith("gpl") ||
+        t.includes("gas de petroleo") ||
+        t.includes("gas petroleo")
+      );
+    return false;
+  });
+
+  if (!comb) return null;
+
+  const cor = corPorTipoCombustivel(comb.tipo ?? "");
+  const precoOriginal = parsePreco(comb.texto);
+  const temDesc =
+    !!centimos &&
+    centimos > 0 &&
+    !!descontoMarcaNome &&
+    normalizeName(posto.marca ?? "") === normalizeName(descontoMarcaNome);
+  const precoDesc =
+    temDesc && precoOriginal !== null
+      ? Math.max(0, precoOriginal - centimos! / 100).toFixed(3)
+      : null;
+
+  return { texto: comb.texto, cor, precoDesc };
+}
+
 export default function MapView({
   postos,
   userLocation,
@@ -130,6 +172,7 @@ export default function MapView({
   invalidateRef,
   descontoCentimos = null,
   descontoMarcaId = "",
+  tipoAtivo = null,
 }: Props) {
   const mapRef = useRef<any>(null);
   const pinsLayerRef = useRef<any>(null);
@@ -145,6 +188,7 @@ export default function MapView({
 
   const descontoCentimosRef = useRef(descontoCentimos);
   const descontoMarcaIdRef = useRef(descontoMarcaId);
+  const tipoAtivoRef = useRef(tipoAtivo);
 
   useEffect(() => {
     cbDistrito.current = onDistritoClick;
@@ -165,6 +209,10 @@ export default function MapView({
   useEffect(() => {
     descontoMarcaIdRef.current = descontoMarcaId;
   }, [descontoMarcaId]);
+
+  useEffect(() => {
+    tipoAtivoRef.current = tipoAtivo;
+  }, [tipoAtivo]);
 
   useEffect(() => {
     if (typeof window === "undefined" || mapRef.current) return;
@@ -393,6 +441,7 @@ export default function MapView({
         const centimos = descontoCentimosRef.current;
         const marcaId = descontoMarcaIdRef.current;
         const descontoMarcaNome = marcaId ? marcaNomeFromId(marcaId) : "";
+        const tipoAtivoAtual = tipoAtivoRef.current;
 
         if (map.hasLayer(pinsLayerRef.current)) {
           map.removeLayer(pinsLayerRef.current);
@@ -423,11 +472,50 @@ export default function MapView({
             normalizeName(posto.marca ?? "") === normalizeName(descontoMarcaNome);
 
           const marcaCor = getMarcaCor(posto.marca ?? "");
+
+          // Balão de preço por tipo ativo
+          const precoInfo = getPrecoPorTipo(posto, tipoAtivoAtual, centimos, descontoMarcaNome);
+          const precoDisplay = precoInfo?.precoDesc ?? precoInfo?.texto ?? null;
+
+          const temBalaoPréco = !!precoInfo && !!precoDisplay;
+
+          // Cor do balão para gasóleo em dark fica branco, senão segue a cor do combustível
+          const balaoBg = precoInfo?.precoDesc ? "#dcfce7" : "white";
+          const balaoBorder = precoInfo?.cor ?? marcaCor;
+          const balaoColor = precoInfo?.cor ?? marcaCor;
+
           const icon = L.divIcon({
             className: "",
-            html: `<div style="width:14px;height:14px;border-radius:50%;background:${marcaCor};box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
-            iconSize: [14, 14],
-            iconAnchor: [7, 7],
+            html: temBalaoPréco
+              ? `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer">
+                  <div style="
+                    background:${balaoBg};
+                    color:${balaoColor};
+                    border:1.5px solid ${balaoBorder};
+                    border-radius:6px;
+                    padding:2px 7px;
+                    font-size:11px;
+                    font-weight:700;
+                    font-family:sans-serif;
+                    white-space:nowrap;
+                    box-shadow:0 2px 6px rgba(0,0,0,0.18);
+                    line-height:1.4;
+                    position:relative;
+                  ">
+                    ${precoDisplay}
+                    <div style="
+                      position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);
+                      width:0;height:0;
+                      border-left:5px solid transparent;
+                      border-right:5px solid transparent;
+                      border-top:5px solid ${balaoBorder};
+                    "></div>
+                  </div>
+                  <div style="width:10px;height:10px;border-radius:50%;background:${marcaCor};box-shadow:0 1px 4px rgba(0,0,0,.35);margin-top:3px"></div>
+                </div>`
+              : `<div style="width:14px;height:14px;border-radius:50%;background:${marcaCor};box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
+            iconSize: temBalaoPréco ? [64, 42] : [14, 14],
+            iconAnchor: temBalaoPréco ? [32, 42] : [7, 7],
           });
 
           const combsHtml =
@@ -435,7 +523,6 @@ export default function MapView({
               .map((c: any) => {
                 const precoOriginal = parsePreco(c.texto);
                 const temDesc = temDesconto && precoOriginal !== null;
-                // Cálculo igual ao PostoCard: preco - centimos/100
                 const precoDesc = temDesc
                   ? Math.max(0, precoOriginal! - centimos! / 100).toFixed(3)
                   : null;
@@ -505,7 +592,7 @@ export default function MapView({
     };
 
     tryAdd();
-  }, [postos, mostrarPins, descontoCentimos, descontoMarcaId]);
+  }, [postos, mostrarPins, descontoCentimos, descontoMarcaId, tipoAtivo]);
 
   useEffect(() => {
     if (!mapRef.current) return;
