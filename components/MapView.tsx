@@ -28,6 +28,7 @@ interface Props {
 const DISTRITOS_URL = "/distritos.geojson";
 const MUNICIPIOS_URL = "/municipios.geojson";
 const PT_BOUNDS = { minLat: 29.0, maxLat: 42.2, minLng: -31.3, maxLng: -6.1 };
+const ZOOM_BALAO = 11;
 
 const NOME_PARA_ID: Record<string, string> = {
   "aveiro": "1",
@@ -72,12 +73,10 @@ function normalizeName(s: string): string {
 
 function getDistritoId(nome: string): string | undefined {
   const norm = normalizeName(nome);
-
   for (const [k, v] of Object.entries(NOME_PARA_ID)) {
     const kn = normalizeName(k);
     if (norm === kn) return v;
   }
-
   for (const [k, v] of Object.entries(NOME_PARA_ID)) {
     const kn = normalizeName(k);
     if (norm.startsWith(kn + " ") || norm.startsWith(kn + ",")) return v;
@@ -185,35 +184,25 @@ export default function MapView({
   const cbDistrito = useRef(onDistritoClick);
   const cbConcelho = useRef(onConcelhoClick);
   const mostrarPinsDistritoRef = useRef(mostrarPinsDistrito);
-
   const descontoCentimosRef = useRef(descontoCentimos);
   const descontoMarcaIdRef = useRef(descontoMarcaId);
   const tipoAtivoRef = useRef(tipoAtivo);
 
-  useEffect(() => {
-    cbDistrito.current = onDistritoClick;
-  }, [onDistritoClick]);
+  // Toggle balões — ligado por defeito
+  const showBaloesRef = useRef(true);
+  // Função de re-render dos pins partilhada (toggle + zoomend)
+  const redrawPinsRef = useRef<(() => void) | null>(null);
+  // Referência ao botão toggle para atualizar o seu estilo
+  const toggleBtnRef = useRef<HTMLButtonElement | null>(null);
 
-  useEffect(() => {
-    cbConcelho.current = onConcelhoClick;
-  }, [onConcelhoClick]);
+  useEffect(() => { cbDistrito.current = onDistritoClick; }, [onDistritoClick]);
+  useEffect(() => { cbConcelho.current = onConcelhoClick; }, [onConcelhoClick]);
+  useEffect(() => { mostrarPinsDistritoRef.current = mostrarPinsDistrito; }, [mostrarPinsDistrito]);
+  useEffect(() => { descontoCentimosRef.current = descontoCentimos; }, [descontoCentimos]);
+  useEffect(() => { descontoMarcaIdRef.current = descontoMarcaId; }, [descontoMarcaId]);
+  useEffect(() => { tipoAtivoRef.current = tipoAtivo; }, [tipoAtivo]);
 
-  useEffect(() => {
-    mostrarPinsDistritoRef.current = mostrarPinsDistrito;
-  }, [mostrarPinsDistrito]);
-
-  useEffect(() => {
-    descontoCentimosRef.current = descontoCentimos;
-  }, [descontoCentimos]);
-
-  useEffect(() => {
-    descontoMarcaIdRef.current = descontoMarcaId;
-  }, [descontoMarcaId]);
-
-  useEffect(() => {
-    tipoAtivoRef.current = tipoAtivo;
-  }, [tipoAtivo]);
-
+  // ─── Inicialização do mapa ───────────────────────────────────────────────
   useEffect(() => {
     if (typeof window === "undefined" || mapRef.current) return;
 
@@ -241,10 +230,53 @@ export default function MapView({
       mapReadyRef.current = true;
 
       if (invalidateRef) {
-        invalidateRef.current = () => {
-          setTimeout(() => map.invalidateSize(), 150);
-        };
+        invalidateRef.current = () => setTimeout(() => map.invalidateSize(), 150);
       }
+
+      // ── Botão toggle de balões de preço (canto sup. direito) ──
+      const updateToggleBtn = (btn: HTMLButtonElement) => {
+        const on = showBaloesRef.current;
+        btn.title = on ? "Ocultar preços no mapa" : "Mostrar preços no mapa";
+        btn.style.cssText = `
+          background:${on ? "#dcfce7" : "white"};
+          color:${on ? "#15803d" : "#6b7280"};
+          border:1.5px solid ${on ? "#86efac" : "#d1d5db"};
+          border-radius:6px;
+          padding:5px 10px;
+          cursor:pointer;
+          font-size:12px;
+          font-weight:600;
+          font-family:sans-serif;
+          box-shadow:0 1px 4px rgba(0,0,0,0.12);
+          display:flex;
+          align-items:center;
+          gap:4px;
+          white-space:nowrap;
+          line-height:1;
+        `;
+        btn.innerHTML = `<span style="font-size:13px">${on ? "💰" : "🏷️"}</span> Preços`;
+      };
+
+      const PriceToggleControl = L.Control.extend({
+        onAdd() {
+          const btn = L.DomUtil.create("button") as HTMLButtonElement;
+          toggleBtnRef.current = btn;
+          updateToggleBtn(btn);
+          L.DomEvent.on(btn, "click", (e) => {
+            L.DomEvent.stopPropagation(e);
+            showBaloesRef.current = !showBaloesRef.current;
+            updateToggleBtn(btn);
+            redrawPinsRef.current?.();
+          });
+          return btn;
+        },
+      });
+      new PriceToggleControl({ position: "topright" }).addTo(map);
+
+      // Re-desenha pins ao mudar de zoom (para ligar/desligar balões por zoom)
+      map.on("zoomend", () => {
+        redrawPinsRef.current?.();
+      });
 
       const sD = { color: "#22c55e", weight: 1.6, fillColor: "#22c55e", fillOpacity: 0.06 };
       const sDH = { fillOpacity: 0.2, weight: 2.2 };
@@ -262,33 +294,17 @@ export default function MapView({
           onEachFeature(feature: any, layer: any) {
             const nome: string = feature.properties?.name ?? "";
             const id = getDistritoId(nome);
-
             if (id) distritoLayerMap[id] = layer;
-
             if (nome) {
-              layer.bindTooltip(`<b>${nome}</b>`, {
-                sticky: true,
-                className: "map-tip",
-                direction: "top",
-              });
+              layer.bindTooltip(`<b>${nome}</b>`, { sticky: true, className: "map-tip", direction: "top" });
             }
-
             layer.on("mouseover", () => layer.setStyle(sDH));
             layer.on("mouseout", () => distritosRef.current?.resetStyle(layer));
-
             layer.on("click", (e: any) => {
               L.DomEvent.stopPropagation(e);
-
-              if (e.originalEvent?.target) {
-                (e.originalEvent.target as HTMLElement).style.outline = "none";
-              }
-
+              if (e.originalEvent?.target) (e.originalEvent.target as HTMLElement).style.outline = "none";
               map.fitBounds(layer.getBounds(), { padding: [30, 30], animate: true });
-
-              setTimeout(() => {
-                if (map.getZoom() < 9) map.setZoom(9, { animate: true });
-              }, 350);
-
+              setTimeout(() => { if (map.getZoom() < 9) map.setZoom(9, { animate: true }); }, 350);
               cbDistrito.current?.(nome, id);
             });
           },
@@ -299,29 +315,17 @@ export default function MapView({
             flyToDistrito: (id: string) => {
               const layer = distritoLayerMap[id];
               if (!layer) return;
-
               map.fitBounds(layer.getBounds(), { padding: [30, 30], animate: true });
-
               if (id !== "20" && id !== "21") {
-                setTimeout(() => {
-                  if (map.getZoom() < 9) map.setZoom(9, { animate: true });
-                }, 350);
+                setTimeout(() => { if (map.getZoom() < 9) map.setZoom(9, { animate: true }); }, 350);
               }
             },
             flyToConcelho: (distritoId: string, concelhoNome: string) => {
               const norm = normalizeName(concelhoNome);
               const layer = concelhoLayerMap[`${distritoId}_${norm}`];
-              if (layer) {
-                map.fitBounds(layer.getBounds(), {
-                  padding: [20, 20],
-                  maxZoom: 14,
-                  animate: true,
-                });
-              }
+              if (layer) map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
             },
-            resetView: () => {
-              map.setView([39.6, -8.0], 7, { animate: true });
-            },
+            resetView: () => map.setView([39.6, -8.0], 7, { animate: true }),
           } as any;
         }
       });
@@ -337,36 +341,18 @@ export default function MapView({
             const disNome = (p.dis_name ?? "") as string;
             const disCode = (p.dis_code ?? "") as string;
             const distritoId = disCode ? disCodeToDgeg(disCode) : getDistritoId(disNome) ?? "";
-
-            if (distritoId && conNome) {
-              const norm = normalizeName(conNome);
-              concelhoLayerMap[`${distritoId}_${norm}`] = layer;
-            }
-
+            if (distritoId && conNome) concelhoLayerMap[`${distritoId}_${normalizeName(conNome)}`] = layer;
             if (conNome) {
               layer.bindTooltip(`<b>${conNome}</b>${disNome ? ` · ${disNome}` : ""}`, {
-                sticky: true,
-                className: "map-tip",
-                direction: "top",
+                sticky: true, className: "map-tip", direction: "top",
               });
             }
-
             layer.on("mouseover", () => layer.setStyle(sMH));
             layer.on("mouseout", () => municipiosRef.current?.resetStyle(layer));
-
             layer.on("click", (e: any) => {
               L.DomEvent.stopPropagation(e);
-
-              if (e.originalEvent?.target) {
-                (e.originalEvent.target as HTMLElement).style.outline = "none";
-              }
-
-              map.fitBounds(layer.getBounds(), {
-                padding: [20, 20],
-                maxZoom: 14,
-                animate: true,
-              });
-
+              if (e.originalEvent?.target) (e.originalEvent.target as HTMLElement).style.outline = "none";
+              map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
               if (distritoId && conNome) cbConcelho.current?.(distritoId, conNome);
             });
           },
@@ -377,42 +363,23 @@ export default function MapView({
           flyRef.current = {
             flyToDistrito: prev?.flyToDistrito ?? (() => {}),
             flyToConcelho: (distritoId: string, concelhoNome: string) => {
-              const norm = normalizeName(concelhoNome);
-              const layer = concelhoLayerMap[`${distritoId}_${norm}`];
-              if (layer) {
-                map.fitBounds(layer.getBounds(), {
-                  padding: [20, 20],
-                  maxZoom: 14,
-                  animate: true,
-                });
-              }
+              const layer = concelhoLayerMap[`${distritoId}_${normalizeName(concelhoNome)}`];
+              if (layer) map.fitBounds(layer.getBounds(), { padding: [20, 20], maxZoom: 14, animate: true });
             },
-            resetView: prev?.resetView ?? (() => {
-              map.setView([39.6, -8.0], 7, { animate: true });
-            }),
+            resetView: prev?.resetView ?? (() => map.setView([39.6, -8.0], 7, { animate: true })),
           } as any;
         }
 
         function syncLayers() {
           const z = map.getZoom();
-
           if (z >= 9) {
-            if (distritosRef.current && map.hasLayer(distritosRef.current)) {
-              map.removeLayer(distritosRef.current);
-            }
-            if (municipiosRef.current && !map.hasLayer(municipiosRef.current)) {
-              map.addLayer(municipiosRef.current);
-            }
+            if (distritosRef.current && map.hasLayer(distritosRef.current)) map.removeLayer(distritosRef.current);
+            if (municipiosRef.current && !map.hasLayer(municipiosRef.current)) map.addLayer(municipiosRef.current);
           } else {
-            if (municipiosRef.current && map.hasLayer(municipiosRef.current)) {
-              map.removeLayer(municipiosRef.current);
-            }
-            if (distritosRef.current && !map.hasLayer(distritosRef.current)) {
-              map.addLayer(distritosRef.current);
-            }
+            if (municipiosRef.current && map.hasLayer(municipiosRef.current)) map.removeLayer(municipiosRef.current);
+            if (distritosRef.current && !map.hasLayer(distritosRef.current)) map.addLayer(distritosRef.current);
           }
         }
-
         map.on("zoomend", syncLayers);
         syncLayers();
       });
@@ -425,135 +392,115 @@ export default function MapView({
     })();
   }, []);
 
+  // ─── Renderização dos pins ───────────────────────────────────────────────
   useEffect(() => {
     if (!mapRef.current) return;
 
-    const tryAdd = (retries = 20) => {
-      if (!mapReadyRef.current || !pinsLayerRef.current) {
-        if (retries > 0) setTimeout(() => tryAdd(retries - 1), 200);
-        return;
-      }
+    const drawPins = async () => {
+      if (!mapReadyRef.current || !pinsLayerRef.current) return;
 
-      (async () => {
-        const L = (await import("leaflet")).default;
-        const map = mapRef.current;
+      const L = (await import("leaflet")).default;
+      const map = mapRef.current;
 
-        const centimos = descontoCentimosRef.current;
-        const marcaId = descontoMarcaIdRef.current;
-        const descontoMarcaNome = marcaId ? marcaNomeFromId(marcaId) : "";
-        const tipoAtivoAtual = tipoAtivoRef.current;
+      const centimos = descontoCentimosRef.current;
+      const marcaId = descontoMarcaIdRef.current;
+      const descontoMarcaNome = marcaId ? marcaNomeFromId(marcaId) : "";
+      const tipoAtivoAtual = tipoAtivoRef.current;
+      const showBaloes = showBaloesRef.current;
+      const zoomPermiteBaloes = map.getZoom() >= ZOOM_BALAO;
 
-        if (map.hasLayer(pinsLayerRef.current)) {
-          map.removeLayer(pinsLayerRef.current);
-        }
+      if (map.hasLayer(pinsLayerRef.current)) map.removeLayer(pinsLayerRef.current);
+      pinsLayerRef.current.clearLayers();
 
-        pinsLayerRef.current.clearLayers();
+      if (!mostrarPins || postos.length === 0) return;
 
-        if (!mostrarPins || postos.length === 0) return;
+      const bounds: [number, number][] = [];
 
-        const bounds: [number, number][] = [];
+      postos.forEach((posto) => {
+        if (posto.lat === null || posto.lng === null) return;
+        if (
+          posto.lat < PT_BOUNDS.minLat || posto.lat > PT_BOUNDS.maxLat ||
+          posto.lng < PT_BOUNDS.minLng || posto.lng > PT_BOUNDS.maxLng
+        ) return;
 
-        postos.forEach((posto) => {
-          if (posto.lat === null || posto.lng === null) return;
+        const temDesconto =
+          !!centimos && centimos > 0 && !!descontoMarcaNome &&
+          normalizeName(posto.marca ?? "") === normalizeName(descontoMarcaNome);
 
-          if (
-            posto.lat < PT_BOUNDS.minLat ||
-            posto.lat > PT_BOUNDS.maxLat ||
-            posto.lng < PT_BOUNDS.minLng ||
-            posto.lng > PT_BOUNDS.maxLng
-          ) {
-            return;
-          }
+        const marcaCor = getMarcaCor(posto.marca ?? "");
 
-          const temDesconto =
-            !!centimos &&
-            centimos > 0 &&
-            !!descontoMarcaNome &&
-            normalizeName(posto.marca ?? "") === normalizeName(descontoMarcaNome);
+        const precoInfo = getPrecoPorTipo(posto, tipoAtivoAtual, centimos, descontoMarcaNome);
+        const precoDisplay = precoInfo?.precoDesc ?? precoInfo?.texto ?? null;
 
-          const marcaCor = getMarcaCor(posto.marca ?? "");
+        // Balão visível apenas se: toggle ON + zoom suficiente + tipo ativo + há preço
+        const mostrarBalao = showBaloes && zoomPermiteBaloes && !!precoInfo && !!precoDisplay;
 
-          // Balão de preço por tipo ativo
-          const precoInfo = getPrecoPorTipo(posto, tipoAtivoAtual, centimos, descontoMarcaNome);
-          const precoDisplay = precoInfo?.precoDesc ?? precoInfo?.texto ?? null;
+        const balaoBg = precoInfo?.precoDesc ? "#dcfce7" : "white";
+        const balaoBorder = precoInfo?.cor ?? marcaCor;
+        const balaoColor = precoInfo?.cor ?? marcaCor;
 
-          const temBalaoPréco = !!precoInfo && !!precoDisplay;
-
-          // Cor do balão para gasóleo em dark fica branco, senão segue a cor do combustível
-          const balaoBg = precoInfo?.precoDesc ? "#dcfce7" : "white";
-          const balaoBorder = precoInfo?.cor ?? marcaCor;
-          const balaoColor = precoInfo?.cor ?? marcaCor;
-
-          const icon = L.divIcon({
-            className: "",
-            html: temBalaoPréco
-              ? `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer">
+        const icon = L.divIcon({
+          className: "",
+          html: mostrarBalao
+            ? `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer">
+                <div style="
+                  background:${balaoBg};
+                  color:${balaoColor};
+                  border:1.5px solid ${balaoBorder};
+                  border-radius:6px;
+                  padding:2px 7px;
+                  font-size:11px;
+                  font-weight:700;
+                  font-family:sans-serif;
+                  white-space:nowrap;
+                  box-shadow:0 2px 6px rgba(0,0,0,0.18);
+                  line-height:1.4;
+                  position:relative;
+                ">
+                  ${precoDisplay}
                   <div style="
-                    background:${balaoBg};
-                    color:${balaoColor};
-                    border:1.5px solid ${balaoBorder};
-                    border-radius:6px;
-                    padding:2px 7px;
-                    font-size:11px;
-                    font-weight:700;
-                    font-family:sans-serif;
-                    white-space:nowrap;
-                    box-shadow:0 2px 6px rgba(0,0,0,0.18);
-                    line-height:1.4;
-                    position:relative;
-                  ">
-                    ${precoDisplay}
-                    <div style="
-                      position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);
-                      width:0;height:0;
-                      border-left:5px solid transparent;
-                      border-right:5px solid transparent;
-                      border-top:5px solid ${balaoBorder};
-                    "></div>
-                  </div>
-                  <div style="width:10px;height:10px;border-radius:50%;background:${marcaCor};box-shadow:0 1px 4px rgba(0,0,0,.35);margin-top:3px"></div>
-                </div>`
-              : `<div style="width:14px;height:14px;border-radius:50%;background:${marcaCor};box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
-            iconSize: temBalaoPréco ? [64, 42] : [14, 14],
-            iconAnchor: temBalaoPréco ? [32, 42] : [7, 7],
-          });
+                    position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);
+                    width:0;height:0;
+                    border-left:5px solid transparent;
+                    border-right:5px solid transparent;
+                    border-top:5px solid ${balaoBorder};
+                  "></div>
+                </div>
+                <div style="width:10px;height:10px;border-radius:50%;background:${marcaCor};box-shadow:0 1px 4px rgba(0,0,0,.35);margin-top:3px"></div>
+              </div>`
+            : `<div style="width:14px;height:14px;border-radius:50%;background:${marcaCor};box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
+          iconSize: mostrarBalao ? [64, 42] : [14, 14],
+          iconAnchor: mostrarBalao ? [32, 42] : [7, 7],
+        });
 
-          const combsHtml =
-            posto.combustiveis
-              .map((c: any) => {
-                const precoOriginal = parsePreco(c.texto);
-                const temDesc = temDesconto && precoOriginal !== null;
-                const precoDesc = temDesc
-                  ? Math.max(0, precoOriginal! - centimos! / 100).toFixed(3)
-                  : null;
+        const combsHtml =
+          posto.combustiveis
+            .map((c: any) => {
+              const precoOriginal = parsePreco(c.texto);
+              const temDesc = temDesconto && precoOriginal !== null;
+              const precoDesc = temDesc
+                ? Math.max(0, precoOriginal! - centimos! / 100).toFixed(3)
+                : null;
+              const corPreco = corPorTipoCombustivel(c.tipo ?? "");
+              const precoHtml = temDesc
+                ? `<span style="display:inline-flex;align-items:center;gap:0.35rem">
+                     <s style="color:#bbb;font-size:0.68rem">${c.texto}</s>
+                     <span style="font-weight:700;color:${corPreco}">${precoDesc}</span>
+                     <span style="font-size:0.6rem;color:${corPreco};background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px">-${centimos}c</span>
+                   </span>`
+                : `<span style="font-weight:700;color:${corPreco}">${c.texto}</span>`;
+              return `<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;font-size:0.72rem">
+                <span style="color:#888">${c.tipo}</span>${precoHtml}
+              </div>`;
+            })
+            .join("") || `<span style="font-size:0.72rem;color:#888">Sem preços</span>`;
 
-                const corPreco = corPorTipoCombustivel(c.tipo ?? "");
+        const descontoBadge = temDesconto
+          ? `<div style="margin-top:6px;font-size:0.65rem;color:#15803d;background:#dcfce7;padding:2px 7px;border-radius:4px;display:inline-block">🏷️ Cupão ${centimos}c/L aplicado</div>`
+          : "";
 
-                const precoHtml = temDesc
-                  ? `<span style="display:inline-flex;align-items:center;gap:0.35rem">
-                       <s style="color:#bbb;font-size:0.68rem">${c.texto}</s>
-                       <span style="font-weight:700;color:${corPreco}">${precoDesc}</span>
-                       <span style="font-size:0.6rem;color:${corPreco};background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px">-${centimos}c</span>
-                     </span>`
-                  : `<span style="font-weight:700;color:${corPreco}">${c.texto}</span>`;
-
-                return `
-                  <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;font-size:0.72rem">
-                    <span style="color:#888">${c.tipo}</span>
-                    ${precoHtml}
-                  </div>`;
-              })
-              .join("") || `<span style="font-size:0.72rem;color:#888">Sem preços</span>`;
-
-          const descontoBadge = temDesconto
-            ? `<div style="margin-top:6px;font-size:0.65rem;color:#15803d;background:#dcfce7;padding:2px 7px;border-radius:4px;display:inline-block">
-                 🏷️ Cupão ${centimos}c/L aplicado
-               </div>`
-            : "";
-
-          const marker = L.marker([posto.lat, posto.lng], { icon }).bindPopup(
-            `
-<div style="min-width:190px;font-family:sans-serif">
+        const marker = L.marker([posto.lat, posto.lng], { icon }).bindPopup(
+          `<div style="min-width:190px;font-family:sans-serif">
   <p style="font-weight:700;margin:0 0 2px">
     <span style="color:${marcaCor}">${posto.marca}</span>
     <span style="color:#aaa;margin:0 0.3rem">|</span>
@@ -570,33 +517,41 @@ export default function MapView({
         )}`
   }" target="_blank" rel="noopener noreferrer"
     style="display:inline-flex;align-items:center;gap:0.3rem;margin-top:8px;padding:4px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.67rem;font-weight:500;color:#555;text-decoration:none;">
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <polygon points="3 11 22 2 13 21 11 13 3 11"/>
-    </svg>
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
     Direções
   </a>
 </div>`,
-            { maxWidth: 280 }
-          );
+          { maxWidth: 280 }
+        );
 
-          pinsLayerRef.current.addLayer(marker);
-          bounds.push([posto.lat, posto.lng]);
-        });
+        pinsLayerRef.current.addLayer(marker);
+        bounds.push([posto.lat, posto.lng]);
+      });
 
-        map.addLayer(pinsLayerRef.current);
+      map.addLayer(pinsLayerRef.current);
 
-        if (bounds.length) {
-          map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
-        }
-      })();
+      if (bounds.length) {
+        map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
+      }
+    };
+
+    // Guarda referência para ser chamada pelo toggle e pelo zoomend
+    redrawPinsRef.current = drawPins;
+
+    const tryAdd = (retries = 20) => {
+      if (!mapReadyRef.current || !pinsLayerRef.current) {
+        if (retries > 0) setTimeout(() => tryAdd(retries - 1), 200);
+        return;
+      }
+      drawPins();
     };
 
     tryAdd();
   }, [postos, mostrarPins, descontoCentimos, descontoMarcaId, tipoAtivo]);
 
+  // ─── Marcador de localização do utilizador ───────────────────────────────
   useEffect(() => {
     if (!mapRef.current) return;
-
     let cancelled = false;
 
     (async () => {
@@ -610,28 +565,13 @@ export default function MapView({
 
       if (
         !userLocation ||
-        userLocation.lat < PT_BOUNDS.minLat ||
-        userLocation.lat > PT_BOUNDS.maxLat ||
-        userLocation.lng < PT_BOUNDS.minLng ||
-        userLocation.lng > PT_BOUNDS.maxLng
-      ) {
-        return;
-      }
+        userLocation.lat < PT_BOUNDS.minLat || userLocation.lat > PT_BOUNDS.maxLat ||
+        userLocation.lng < PT_BOUNDS.minLng || userLocation.lng > PT_BOUNDS.maxLng
+      ) return;
 
       const userIcon = L.divIcon({
         className: "",
-        html: `
-          <div style="
-            width:18px;
-            height:18px;
-            border-radius:50%;
-            background:#2b7fff;
-            border:3px solid #ffffff;
-            box-shadow:
-              0 0 0 4px rgba(43,127,255,0.22),
-              0 3px 10px rgba(0,0,0,0.28);
-          "></div>
-        `,
+        html: `<div style="width:18px;height:18px;border-radius:50%;background:#2b7fff;border:3px solid #ffffff;box-shadow:0 0 0 4px rgba(43,127,255,0.22),0 3px 10px rgba(0,0,0,0.28);"></div>`,
         iconSize: [18, 18],
         iconAnchor: [9, 9],
       });
@@ -645,9 +585,7 @@ export default function MapView({
       userMarkerRef.current.addTo(mapRef.current);
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [userLocation]);
 
   return (
