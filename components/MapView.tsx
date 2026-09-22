@@ -215,7 +215,7 @@ export default function MapView({
         tapTolerance: 15,
       }).setView([39.6, -8.0], 7);
 
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=" + process.env.NEXT_PUBLIC_CARTO_API_KEY, {
         maxZoom: 19,
         attribution: "© OSM © CARTO",
       }).addTo(map);
