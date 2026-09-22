@@ -52,7 +52,7 @@ export default function DonationModal({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>Apoiar o projeto 💚</span>
+          <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>Apoiar o projeto</span>
           <button
             onClick={onClose}
             style={{
@@ -69,9 +69,8 @@ export default function DonationModal({
         </div>
 
         <p style={{ fontSize: "0.78rem", lineHeight: 1.6, color: "var(--text)", margin: 0 }}>
-          Esta aplicação é completamente gratuita e não tem qualquer publicidade, é apenas
-          carregada de boa vontade! Se queres ajudar-me a manter este projeto, tens algumas formas
-          de como contribuir abaixo. Se queres contribuir de outra forma, por favor envia um email
+          Esta aplicação é gratuita e não tem publicidade nem utiliza rastreadores, é apenas
+          carregada de boa vontade! Se queres ajudar-me a manter este projeto, podes contribuir através das seguintes criptomoedas; Se pretendes contribuir de outra forma, envia um email
           para{" "}
           <a href="mailto:zirgolina@sapo.pt" style={{ color: "var(--accent)" }}>
             zirgolina@sapo.pt

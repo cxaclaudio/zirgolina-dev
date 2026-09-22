@@ -65,6 +65,7 @@ export default function PostoCardCompact({
 }: Props) {
   const { dark } = useTheme();
   const [expanded, setExpanded] = useState(false);
+  const [showNavMenu, setShowNavMenu] = useState(false);
 
   const precoDestaque: number | null = tipoAtivo
     ? getPrecoCombustivel(posto, tipoAtivo)
@@ -92,16 +93,30 @@ export default function PostoCardCompact({
       ? Math.max(0, precoDestaque - descontoCentimos! / 100)
       : null;
 
-  function handleDirecoes(e: React.MouseEvent) {
+  function handleDirecoes(e: React.MouseEvent, app: 'google' | 'waze' | 'apple') {
     e.stopPropagation();
-    const url =
-      posto.lat && posto.lng
+    setShowNavMenu(false);
+
+    const hasCoords = posto.lat && posto.lng;
+    let url = '';
+
+    if (app === 'google') {
+      url = hasCoords
         ? `https://www.google.com/maps/dir/?api=1&destination=${posto.lat},${posto.lng}`
-        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-            [posto.nome, posto.morada, posto.localidade, posto.codPostal]
-              .filter(Boolean).join(", ")
-          )}`;
-    window.open(url, "_blank", "noopener,noreferrer");
+        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([posto.nome, posto.morada, posto.localidade, posto.codPostal].filter(Boolean).join(", "))}`;
+    } else if (app === 'waze') {
+      url = hasCoords
+        ? `https://www.waze.com/ul?ll=${posto.lat},${posto.lng}&navigate=yes`
+        : `https://www.waze.com/ul?q=${encodeURIComponent([posto.nome, posto.morada, posto.localidade, posto.codPostal].filter(Boolean).join(", "))}`;
+    } else if (app === 'apple') {
+      url = hasCoords
+        ? `http://maps.apple.com/?daddr=${posto.lat},${posto.lng}`
+        : `http://maps.apple.com/?q=${encodeURIComponent([posto.nome, posto.morada, posto.localidade, posto.codPostal].filter(Boolean).join(", "))}`;
+    }
+
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
   }
 
   return (
@@ -157,7 +172,7 @@ export default function PostoCardCompact({
       </div>
 
       {expanded && (
-        <div style={{ borderTop: "1px solid var(--border)", padding: "0.6rem 0.875rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+        <div style={{ borderTop: "1px solid var(--border)", padding: "0.6rem 0.875rem", display: "flex", flexDirection: "column", gap: "0.4mark" }}>
           {/* Tabela de combustíveis com cores e desconto em TODOS */}
           {posto.combustiveis.length > 0 && (
             <div style={{ borderRadius: "0.5rem", overflow: "hidden", border: "1px solid var(--border)" }}>
@@ -229,18 +244,76 @@ export default function PostoCardCompact({
             <span style={{ fontSize: "0.5rem", color: "var(--text-muted)" }}>
               Última atualização: {ultimaAtualizacao}
             </span>
-            <button onClick={handleDirecoes} title="Abrir no Google Maps" style={{
-              display: "flex", alignItems: "center", gap: "0.3rem",
-              background: "transparent", border: "1px solid var(--border)",
-              borderRadius: "0.45rem", padding: "0.22rem 0.55rem",
-              cursor: "pointer", color: "var(--text-muted)",
-              fontSize: "0.67rem", fontWeight: 500, whiteSpace: "nowrap", flexShrink: 0,
-            }}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="3 11 22 2 13 21 11 13 3 11" />
-              </svg>
-              Direções
-            </button>
+
+            {/* Botão de Direções com Menu Dropdown */}
+            <div style={{ position: "relative", display: "inline-block" }}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowNavMenu(!showNavMenu);
+                }}
+                title="Escolher aplicação de navegação"
+                style={{
+                  display: "flex", alignItems: "center", gap: "0.3rem",
+                  background: "transparent", border: "1px solid var(--border)",
+                  borderRadius: "0.45rem", padding: "0.22rem 0.55rem",
+                  cursor: "pointer", color: "var(--text-muted)",
+                  fontSize: "0.67rem", fontWeight: 500, whiteSpace: "nowrap",
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="3 11 22 2 13 21 11 13 3 11" />
+                </svg>
+                Direções
+              </button>
+
+              {showNavMenu && (
+<div 
+  style={{
+    position: "absolute",
+    right: 0,
+    bottom: "100%", // use top: "100%" se estiver no PostoCard normal
+    marginBottom: "4px",
+    background: dark ? "var(--bg-input, #18181b)" : "#ffffff",
+    border: "1px solid var(--border)",
+    borderRadius: "0.45rem",
+    boxShadow: dark ? "0 4px 12px rgba(0,0,0,0.5)" : "0 4px 6px rgba(0,0,0,0.1)",
+    zIndex: 50,
+    display: "flex",
+    flexDirection: "column",
+    minWidth: "110px",
+    overflow: "hidden",
+  }}
+  onClick={(e) => e.stopPropagation()}
+>
+  <button 
+    onClick={(e) => handleDirecoes(e, 'google')}
+    style={{ padding: "0.4rem 0.6rem", textAlign: "left", background: "none", border: "none", fontSize: "0.67rem", cursor: "pointer", color: "var(--text)" }}
+    onMouseOver={(e) => e.currentTarget.style.background = dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)"}
+    onMouseOut={(e) => e.currentTarget.style.background = "none"}
+  >
+    Google Maps
+  </button>
+  <button 
+    onClick={(e) => handleDirecoes(e, 'waze')}
+    style={{ padding: "0.4rem 0.6rem", textAlign: "left", background: "none", border: "none", fontSize: "0.67rem", cursor: "pointer", color: "var(--text)", borderTop: "1px solid var(--border)" }}
+    onMouseOver={(e) => e.currentTarget.style.background = dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)"}
+    onMouseOut={(e) => e.currentTarget.style.background = "none"}
+  >
+    Waze
+  </button>
+  <button 
+    onClick={(e) => handleDirecoes(e, 'apple')}
+    style={{ padding: "0.4rem 0.6rem", textAlign: "left", background: "none", border: "none", fontSize: "0.67rem", cursor: "pointer", color: "var(--text)", borderTop: "1px solid var(--border)" }}
+    onMouseOver={(e) => e.currentTarget.style.background = dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)"}
+    onMouseOut={(e) => e.currentTarget.style.background = "none"}
+  >
+    Apple Maps
+  </button>
+</div>
+              )}
+            </div>
           </div>
         </div>
       )}
