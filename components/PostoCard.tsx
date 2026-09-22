@@ -105,14 +105,14 @@ export default function PostoCard({
       url = hasCoords
         ? `https://www.google.com/maps/dir/?api=1&destination=${posto.lat},${posto.lng}`
         : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([posto.nome, posto.morada, posto.localidade, posto.codPostal].filter(Boolean).join(", "))}`;
-    } else if (app === 'waze') {
-      url = hasCoords
-        ? `https://www.waze.com/ul?ll=${posto.lat},${posto.lng}&navigate=yes`
-        : `https://www.waze.com/ul?q=${encodeURIComponent([posto.nome, posto.morada, posto.localidade, posto.codPostal].filter(Boolean).join(", "))}`;
     } else if (app === 'apple') {
       url = hasCoords
         ? `http://maps.apple.com/?daddr=${posto.lat},${posto.lng}`
         : `http://maps.apple.com/?q=${encodeURIComponent([posto.nome, posto.morada, posto.localidade, posto.codPostal].filter(Boolean).join(", "))}`;
+    } else if (app === 'waze') {
+      url = hasCoords
+	    ? `https://www.waze.com/ul?ll=${posto.lat},${posto.lng}&navigate=yes`
+        : `https://www.waze.com/ul?q=${encodeURIComponent([posto.nome, posto.morada, posto.localidade, posto.codPostal].filter(Boolean).join(", "))}`;
     }
 
     if (url) {
@@ -205,6 +205,14 @@ export default function PostoCard({
   >
     Google Maps
   </button>
+    <button 
+    onClick={(e) => handleDirecoes(e, 'apple')}
+    style={{ padding: "0.4rem 0.6rem", textAlign: "left", background: "none", border: "none", fontSize: "0.67rem", cursor: "pointer", color: "var(--text)", borderTop: "1px solid var(--border)" }}
+    onMouseOver={(e) => e.currentTarget.style.background = dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)"}
+    onMouseOut={(e) => e.currentTarget.style.background = "none"}
+  >
+    Apple Maps
+  </button>
   <button 
     onClick={(e) => handleDirecoes(e, 'waze')}
     style={{ padding: "0.4rem 0.6rem", textAlign: "left", background: "none", border: "none", fontSize: "0.67rem", cursor: "pointer", color: "var(--text)", borderTop: "1px solid var(--border)" }}
@@ -212,14 +220,6 @@ export default function PostoCard({
     onMouseOut={(e) => e.currentTarget.style.background = "none"}
   >
     Waze
-  </button>
-  <button 
-    onClick={(e) => handleDirecoes(e, 'apple')}
-    style={{ padding: "0.4rem 0.6rem", textAlign: "left", background: "none", border: "none", fontSize: "0.67rem", cursor: "pointer", color: "var(--text)", borderTop: "1px solid var(--border)" }}
-    onMouseOver={(e) => e.currentTarget.style.background = dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)"}
-    onMouseOut={(e) => e.currentTarget.style.background = "none"}
-  >
-    Apple Maps
   </button>
 </div>
           )}

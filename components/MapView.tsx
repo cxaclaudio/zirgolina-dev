@@ -184,7 +184,6 @@ export default function MapView({
   const mostrarPinsRef = useRef(mostrarPins);
   const postosRef = useRef(postos);
 
-  // balões ativos por defeito; redrawPinsRef chamado pelo botão € e pelo zoomend
   const showBaloesRef = useRef(true);
   const redrawPinsRef = useRef<(() => void) | null>(null);
 
@@ -228,7 +227,6 @@ export default function MapView({
         invalidateRef.current = () => setTimeout(() => map.invalidateSize(), 150);
       }
 
-      // ── € + + − no mesmo leaflet-bar topleft ──
       const ComboControl = L.Control.extend({
         onAdd() {
           const container = L.DomUtil.create("div", "leaflet-bar leaflet-control leaflet-control-zoom");
@@ -276,11 +274,9 @@ export default function MapView({
       });
       new ComboControl({ position: "topleft" }).addTo(map);
 
-      // ── zoomend: redesenha pins sem mover o mapa ──
       let lastZoomHadBaloes = map.getZoom() >= ZOOM_BALAO;
       map.on("zoomend", () => {
         const nowHasBaloes = map.getZoom() >= ZOOM_BALAO;
-        // só redesenha quando o limiar é cruzado (evita flicker a cada zoom step dentro do mesmo regime)
         if (nowHasBaloes !== lastZoomHadBaloes) {
           lastZoomHadBaloes = nowHasBaloes;
           redrawPinsRef.current?.();
@@ -509,28 +505,33 @@ export default function MapView({
             ? `<div style="margin-top:6px;font-size:0.65rem;color:#15803d;background:#dcfce7;padding:2px 7px;border-radius:4px;display:inline-block">Cupão ${centimos}c/L aplicado</div>`
             : "";
 
+          const hasCoords = posto.lat && posto.lng;
+          const googleUrl = hasCoords
+            ? `https://www.google.com/maps/dir/?api=1&destination=${posto.lat},${posto.lng}`
+            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([posto.nome, posto.morada, posto.localidade].filter(Boolean).join(", "))}`;
+          const appleUrl = hasCoords
+            ? `http://maps.apple.com/?daddr=${posto.lat},${posto.lng}`
+            : `http://maps.apple.com/?q=${encodeURIComponent([posto.nome, posto.morada, posto.localidade].filter(Boolean).join(", "))}`;
+          const wazeUrl = hasCoords
+            ? `https://www.waze.com/ul?ll=${posto.lat},${posto.lng}&navigate=yes`
+            : `https://www.waze.com/ul?q=${encodeURIComponent([posto.nome, posto.morada, posto.localidade].filter(Boolean).join(", "))}`;
+
           const marker = L.marker([posto.lat, posto.lng], { icon }).bindPopup(
             `<div style="min-width:190px;font-family:sans-serif">
-  <p style="font-weight:700;margin:0 0 2px">
-    <span style="color:${marcaCor}">${posto.marca}</span>
-    <span style="color:#aaa;margin:0 0.3rem">|</span>
-    ${posto.nome}
-  </p>
-  <p style="font-size:0.72rem;color:#888;margin:0 0 6px">${posto.localidade}</p>
-  ${combsHtml}
-  ${descontoBadge}
-  <a href="${
-    posto.lat && posto.lng
-      ? `https://www.google.com/maps/dir/?api=1&destination=${posto.lat},${posto.lng}`
-      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-          [posto.nome, posto.morada, posto.localidade].filter(Boolean).join(", ")
-        )}`
-  }" target="_blank" rel="noopener noreferrer"
-    style="display:inline-flex;align-items:center;gap:0.3rem;margin-top:8px;padding:4px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.67rem;font-weight:500;color:#555;text-decoration:none;">
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-    Direções
-  </a>
-</div>`,
+              <p style="font-weight:700;margin:0 0 2px">
+                <span style="color:${marcaCor}">${posto.marca}</span>
+                <span style="color:#aaa;margin:0 0.3rem">|</span>
+                ${posto.nome}
+              </p>
+              <p style="font-size:0.72rem;color:#888;margin:0 0 6px">${posto.localidade}</p>
+              ${combsHtml}
+              ${descontoBadge}
+              <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+                <a href="${googleUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:0.65rem;font-weight:500;color:#333;text-decoration:none;">Google Maps</a>
+                <a href="${appleUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:0.65rem;font-weight:500;color:#333;text-decoration:none;">Apple Maps</a>
+                <a href="${wazeUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:0.65rem;font-weight:500;color:#333;text-decoration:none;">Waze</a>
+              </div>
+            </div>`,
             { maxWidth: 280 }
           );
 
@@ -546,7 +547,6 @@ export default function MapView({
       })();
     };
 
-    // ── redrawPinsRef: redesenha sem fitBounds (botão € e zoomend) ──
     redrawPinsRef.current = () => {
       (async () => {
         const L = (await import("leaflet")).default;
@@ -628,28 +628,33 @@ export default function MapView({
             ? `<div style="margin-top:6px;font-size:0.65rem;color:#15803d;background:#dcfce7;padding:2px 7px;border-radius:4px;display:inline-block">Cupão ${centimos}c/L aplicado</div>`
             : "";
 
+          const hasCoords = posto.lat && posto.lng;
+          const googleUrl = hasCoords
+            ? `https://www.google.com/maps/dir/?api=1&destination=${posto.lat},${posto.lng}`
+            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([posto.nome, posto.morada, posto.localidade].filter(Boolean).join(", "))}`;
+          const appleUrl = hasCoords
+            ? `http://maps.apple.com/?daddr=${posto.lat},${posto.lng}`
+            : `http://maps.apple.com/?q=${encodeURIComponent([posto.nome, posto.morada, posto.localidade].filter(Boolean).join(", "))}`;
+          const wazeUrl = hasCoords
+            ? `https://www.waze.com/ul?ll=${posto.lat},${posto.lng}&navigate=yes`
+            : `https://www.waze.com/ul?q=${encodeURIComponent([posto.nome, posto.morada, posto.localidade].filter(Boolean).join(", "))}`;
+
           const marker = L.marker([posto.lat, posto.lng], { icon }).bindPopup(
             `<div style="min-width:190px;font-family:sans-serif">
-  <p style="font-weight:700;margin:0 0 2px">
-    <span style="color:${marcaCor}">${posto.marca}</span>
-    <span style="color:#aaa;margin:0 0.3rem">|</span>
-    ${posto.nome}
-  </p>
-  <p style="font-size:0.72rem;color:#888;margin:0 0 6px">${posto.localidade}</p>
-  ${combsHtml}
-  ${descontoBadge}
-  <a href="${
-    posto.lat && posto.lng
-      ? `https://www.google.com/maps/dir/?api=1&destination=${posto.lat},${posto.lng}`
-      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-          [posto.nome, posto.morada, posto.localidade].filter(Boolean).join(", ")
-        )}`
-  }" target="_blank" rel="noopener noreferrer"
-    style="display:inline-flex;align-items:center;gap:0.3rem;margin-top:8px;padding:4px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.67rem;font-weight:500;color:#555;text-decoration:none;">
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-    Direções
-  </a>
-</div>`,
+              <p style="font-weight:700;margin:0 0 2px">
+                <span style="color:${marcaCor}">${posto.marca}</span>
+                <span style="color:#aaa;margin:0 0.3rem">|</span>
+                ${posto.nome}
+              </p>
+              <p style="font-size:0.72rem;color:#888;margin:0 0 6px">${posto.localidade}</p>
+              ${combsHtml}
+              ${descontoBadge}
+              <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+                <a href="${googleUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:0.65rem;font-weight:500;color:#333;text-decoration:none;">Google Maps</a>
+                <a href="${appleUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:0.65rem;font-weight:500;color:#333;text-decoration:none;">Apple Maps</a>
+                <a href="${wazeUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:0.65rem;font-weight:500;color:#333;text-decoration:none;">Waze</a>
+              </div>
+            </div>`,
             { maxWidth: 280 }
           );
 
@@ -657,7 +662,6 @@ export default function MapView({
         });
 
         map.addLayer(pinsLayerRef.current);
-        // SEM fitBounds
       })();
     };
 
